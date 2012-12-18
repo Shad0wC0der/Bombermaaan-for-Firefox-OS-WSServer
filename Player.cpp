@@ -15,3 +15,12 @@ Player::Player() {
 Player::~Player() {
 	// TODO Auto-generated destructor stub
 }
+
+
+std::string Player::getName(){
+
+}
+
+void Player::setname(std::string){
+
+}

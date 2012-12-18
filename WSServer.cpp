@@ -8,31 +8,45 @@
 #include "WSServer.h"
 
 WSServer::WSServer() {
+
 }
 
 WSServer::~WSServer() {
 	// TODO Auto-generated destructor stub
 }
 
-void WSServer::on_open(connection_ptr con) {
-    connections.insert(std::pair<connection_ptr,std::string>(con,get_con_id(con)));
+Game* WSServer::addNewGame(Player* creator){
+	boost::unique_lock<boost::mutex> l(lock);
+
+	std::string id = games.size()+creator->getName();
+	games.push_back(Game(id));
+	return games.end();
 }
 
-void WSServer::on_message(connection_ptr connection,message_ptr msg) {
-	RequestFactory::Request* r = RequestFactory::createRequest(&connection,msg->get_payload());
+void WSServer::removeGame(Game* game){
+	boost::unique_lock<boost::mutex> l(lock);
+}
 
-	if (r!=(RequestFactory::Request*)0){
+void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
+	outGameConnections.insert(std::pair<websocketpp::server::handler::connection_ptr,std::string>(con,get_con_id(con)));
+    con->send("!!!");
+}
+
+void WSServer::on_message(websocketpp::server::handler::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
+	RequestFactory::Request r = RequestFactory::createRequest(connection,msg->get_payload());
+
+	//if (r!=NULL){
 		coordinator.addRequest(r);
-	}
+	//}
 }
 
-void WSServer::on_close(connection_ptr con){
-	std::map<connection_ptr,std::string>::iterator it = connections.find(con);
-	    if (it == connections.end()) {
+void WSServer::on_close(websocketpp::server::handler::connection_ptr con){
+	std::map<websocketpp::server::handler::connection_ptr,std::string>::iterator it = outGameConnections.find(con);
+	    if (it == outGameConnections.end()) {
 	        // already disconnected
 	        return;
 	    }
-	    connections.erase(it);
+	    outGameConnections.erase(it);
 }
 
 void process(RequestCoordinator* coordinator){
@@ -45,7 +59,7 @@ void process(RequestCoordinator* coordinator){
     }
 }
 
-std::string WSServer::get_con_id(connection_ptr con) {
+std::string WSServer::get_con_id(websocketpp::server::handler::connection_ptr con) {
 	std::stringstream endpoint;
 	//endpoint << con->get_endpoint();
 	endpoint << con;
@@ -53,41 +67,45 @@ std::string WSServer::get_con_id(connection_ptr con) {
 }
 
 int main(int argc, char* argv[]) {
-    unsigned short port = 9002;
-    size_t worker_threads = 3;
-    size_t pool_threads = 2;
+	try{
+		unsigned short port = 9002;
+		size_t worker_threads = 3;
+		//size_t pool_threads = 2;
 
-    if (argc >= 2) {
-        std::stringstream buffer(argv[1]);
-        buffer >> port;
-    }
-
-    if (argc >= 3) {
-        std::stringstream buffer(argv[2]);
-        buffer >> pool_threads;
-    }
-
-    if (argc >= 4) {
-        std::stringstream buffer(argv[3]);
-        buffer >> worker_threads;
-    }
-
-    WSServer srv;
-	websocketpp::server::handler::ptr  server_handler = websocketpp::server::handler::ptr(&srv);
-	websocketpp::server endpoint(server_handler);
-
-	std::list<boost::shared_ptr<boost::thread> > threads;
-
-	if (worker_threads > 0) {
-		for (size_t i = 0; i < worker_threads; i++) {
-			threads.push_back(
-				boost::shared_ptr<boost::thread>(
-					new boost::thread(boost::bind(&process,srv.getCoordinator()))
-				)
-			);
+		if (argc >= 2) {
+			std::stringstream buffer(argv[1]);
+			buffer >> port;
 		}
-	}
+		/*
+		if (argc >= 3) {
+			std::stringstream buffer(argv[2]);
+			buffer >> pool_threads;
+		}*/
 
-	endpoint.listen(port,pool_threads);
+		if (argc >= 3) {
+			std::stringstream buffer(argv[2]);
+			buffer >> worker_threads;
+		}
+
+		WSServer srv;
+		websocketpp::server::handler::ptr  server_handler = websocketpp::server::handler::ptr(&srv);
+		websocketpp::server endpoint(server_handler);
+
+		std::list<boost::shared_ptr<boost::thread> > threads;
+
+		if (worker_threads > 0) {
+			for (size_t i = 0; i < worker_threads; i++) {
+				threads.push_back(
+					boost::shared_ptr<boost::thread>(
+						new boost::thread(boost::bind(&process,srv.getCoordinator()))
+					)
+				);
+			}
+		}
+
+		endpoint.listen(port/*,pool_threads*/);
+	} catch (std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
 	return 0;
 }

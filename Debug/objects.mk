@@ -4,5 +4,5 @@
 
 USER_OBJS :=
 
-LIBS := -lwebsocketpp -lboost_thread -lboost_system -lboost_date_time -lboost_regex
+LIBS := -lboost_system -lboost_date_time -lboost_thread -lwebsocketpp -lboost_regex
 

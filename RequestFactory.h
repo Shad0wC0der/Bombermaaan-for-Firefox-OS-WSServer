@@ -13,15 +13,14 @@
 class RequestFactory {
 public:
 	struct Request{
-	public:
-		void process(){}
-		websocketpp::server::handler::connection_ptr con;
-		std::string                   				 value;
+		void process(){con->send("!!!");}
+		websocketpp::server::handler::connection_ptr	 con;
+		json_value*                   			 		 value;
 	};
 
 	RequestFactory();
 	virtual ~RequestFactory();
-	static Request* createRequest(websocketpp::server::handler::connection_ptr*,std::string);
+	static Request createRequest(websocketpp::server::handler::connection_ptr,std::string);
 };
 
 #endif /* REQUESTFACTORY_H_ */

@@ -15,7 +15,7 @@ class RequestCoordinator {
 		RequestCoordinator();
 		virtual ~RequestCoordinator();
 
-	    void addRequest(const RequestFactory::Request* r) ;
+	    void addRequest(const RequestFactory::Request& r) ;
 	    void getRequest(RequestFactory::Request& value) ;
 	private:
 	    std::queue<RequestFactory::Request>         requests;

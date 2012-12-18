@@ -16,7 +16,7 @@ RequestFactory::~RequestFactory() {
 	// TODO Auto-generated destructor stub
 }
 
-RequestFactory::Request* RequestFactory::createRequest(websocketpp::server::handler::connection_ptr* con,std::string source){
+RequestFactory::Request RequestFactory::createRequest(websocketpp::server::handler::connection_ptr con,std::string source){
 	//parsing json
 
 	char *errorPos = 0;
@@ -33,5 +33,8 @@ RequestFactory::Request* RequestFactory::createRequest(websocketpp::server::hand
 
 
 
-	return (RequestFactory::Request*)NULL;
+	RequestFactory::Request r;
+	r.con=con;
+	r.value=(json_value*)0;
+	return r;
 }

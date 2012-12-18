@@ -10,8 +10,12 @@
 
 class Game {
 public:
-	Game();
+	Game(std::string id);
 	virtual ~Game();
+	bool addPlayer(Player*);
+private:
+	std::string id;
+	std::map<websocketpp::server::handler::connection_ptr,std::string> InGameconnections;
 };
 
 #endif /* GAME_H_ */

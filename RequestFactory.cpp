@@ -16,25 +16,18 @@ RequestFactory::~RequestFactory() {
 	// TODO Auto-generated destructor stub
 }
 
-RequestFactory::Request RequestFactory::createRequest(websocketpp::server::handler::connection_ptr con,std::string source){
+Request* RequestFactory::createRequest(websocketpp::server::handler::connection_ptr con,std::string source){
 	//parsing json
 
-	char *errorPos = 0;
-	char *errorDesc = 0;
-	int errorLine = 0;
-	block_allocator allocator(1 << 10); // 1 KB per block
+	JsonParser* parser = new JsonParser(source);
 
-	json_value *root = json_parse( (char *)source.c_str(), &errorPos, &errorDesc, &errorLine, &allocator);
-	json_value *value = root->first_child;
-
-	if(!strcmp(value->string_value,"message"))
-		std::cout<<"mess : "<<value->string_value;
-
-
-
-
-	RequestFactory::Request r;
-	r.con=con;
-	r.value=(json_value*)0;
-	return r;
+	if(parser->getCurrentValue()){
+		if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(MESSAGE)) == 0){
+			if(parser->nextValue()){
+				return new RequestMessage(parser,con);
+			}
+		}
+	}
+	
+	return new Request(con);
 }

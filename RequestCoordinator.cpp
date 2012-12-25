@@ -15,20 +15,21 @@ RequestCoordinator::~RequestCoordinator() {
 	// TODO Auto-generated destructor stub
 }
 
-void RequestCoordinator::addRequest(const RequestFactory::Request& r){
+void RequestCoordinator::addRequest(Request* r){
 	boost::unique_lock<boost::mutex> l(lock);
 	requests.push(r);
 	l.unlock();
 	cond.notify_one();
 }
 
-void RequestCoordinator::getRequest(RequestFactory::Request& value){
+Request* RequestCoordinator::getRequest(){
 	boost::unique_lock<boost::mutex> l(lock);
 
 	while (requests.empty()) {
 		cond.wait(l);
 	}
 
-	value = requests.front();
+	Request* r = requests.front();
 	requests.pop();
+	return r;
 }

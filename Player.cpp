@@ -7,9 +7,9 @@
 
 #include "Player.h"
 
-Player::Player() {
-	// TODO Auto-generated constructor stub
-
+Player::Player(websocketpp::server::connection_ptr con,std::string id) {
+	this->con = con;
+	this->id = id;
 }
 
 Player::~Player() {
@@ -17,10 +17,14 @@ Player::~Player() {
 }
 
 
-std::string Player::getName(){
-
+std::string Player::getName()const{
+	return this->name;
 }
 
 void Player::setname(std::string){
 
+}
+
+websocketpp::server::connection_ptr Player::getCon()const{
+	return this->con;
 }

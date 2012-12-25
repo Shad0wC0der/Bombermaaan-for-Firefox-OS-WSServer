@@ -7,11 +7,7 @@
 
 #include "RequestMessage.h"
 
-RequestMessage::RequestMessage(json_value* value,websocketpp::server::handler::connection_ptr* con) {
-	// TODO Auto-generated constructor stub
+void RequestMessage::process(void){
+	con->send(parser->getCurrentValue()->first_child->string_value);
 
-}
-
-RequestMessage::~RequestMessage() {
-	// TODO Auto-generated destructor stub
 }

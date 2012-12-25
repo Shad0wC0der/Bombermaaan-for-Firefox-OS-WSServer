@@ -16,24 +16,25 @@ WSServer::~WSServer() {
 }
 
 Game* WSServer::addNewGame(Player* creator){
-	boost::unique_lock<boost::mutex> l(lock);
+	boost::unique_lock<boost::mutex> l(lockInGamers);
+	std::stringstream ss;
 
-	std::string id = games.size()+creator->getName();
-	games.push_back(Game(id));
-	return games.end();
+	ss<<games.size()<<creator->getName();
+	games.push_back(Game(ss.str()));
+	return &games.back();
 }
 
 void WSServer::removeGame(Game* game){
-	boost::unique_lock<boost::mutex> l(lock);
+	boost::unique_lock<boost::mutex> l(lockInGamers);
 }
 
 void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
-	outGameConnections.insert(std::pair<websocketpp::server::handler::connection_ptr,std::string>(con,get_con_id(con)));
+	outGamePlayers.push_back(Player(con,get_con_id(con)));
     con->send("!!!");
 }
 
 void WSServer::on_message(websocketpp::server::handler::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
-	RequestFactory::Request r = RequestFactory::createRequest(connection,msg->get_payload());
+	Request* r = RequestFactory::createRequest(connection,msg->get_payload());
 
 	//if (r!=NULL){
 		coordinator.addRequest(r);
@@ -41,21 +42,36 @@ void WSServer::on_message(websocketpp::server::handler::connection_ptr connectio
 }
 
 void WSServer::on_close(websocketpp::server::handler::connection_ptr con){
-	std::map<websocketpp::server::handler::connection_ptr,std::string>::iterator it = outGameConnections.find(con);
-	    if (it == outGameConnections.end()) {
-	        // already disconnected
-	        return;
-	    }
-	    outGameConnections.erase(it);
+
+	//recherche dans les joueurs hors jeu
+	boost::unique_lock<boost::mutex> l1(lockOutGamers);
+	for (std::list<Player>::iterator it = outGamePlayers.begin(); it != outGamePlayers.end(); ){
+		if(it->getCon() == con){
+			outGamePlayers.erase(it);
+			return;
+		}
+		else 
+			++it;
+	}
+	l1.unlock();
+
+	//recherche dans les joueurs en jeu
+	boost::unique_lock<boost::mutex> l2(lockInGamers);
+	for (std::list<Game>::iterator it = games.begin(); it != games.end();){
+		if(it->tryToRemovePlayerByCon(con))
+			return;
+		else ++it;
+	}
+	l2.unlock();
+
+	std::cerr<<"Tried to remove unexisting player."<<std::endl;
 }
 
 void process(RequestCoordinator* coordinator){
-    RequestFactory::Request r;
-
     while (1) {
-        coordinator->getRequest(r);
-
-        r.process();
+		Request* r = coordinator->getRequest();
+			r->process();
+			r->~Request();
     }
 }
 

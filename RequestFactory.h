@@ -7,20 +7,19 @@
 
 #ifndef REQUESTFACTORY_H_
 #define REQUESTFACTORY_H_
-#include <websocketpp/websocketpp.hpp>
 #include "vjson/json.h"
+#include "RequestMessage.h"
+#include "Request.h"
+#include "JsonParser.h"
 
 class RequestFactory {
 public:
-	struct Request{
-		void process(){con->send("!!!");}
-		websocketpp::server::handler::connection_ptr	 con;
-		json_value*                   			 		 value;
-	};
+	#define stringify( name ) # name
+	enum REQUEST_TYPE {MESSAGE};
 
 	RequestFactory();
 	virtual ~RequestFactory();
-	static Request createRequest(websocketpp::server::handler::connection_ptr,std::string);
+	static Request* createRequest(websocketpp::server::handler::connection_ptr,std::string);
 };
 
 #endif /* REQUESTFACTORY_H_ */

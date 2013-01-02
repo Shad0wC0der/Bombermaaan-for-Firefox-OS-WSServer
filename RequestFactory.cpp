@@ -6,14 +6,10 @@
  */
 
 #include "RequestFactory.h"
+#include "WSServer.h"
 
-RequestFactory::RequestFactory() {
-	// TODO Auto-generated constructor stub
-
-}
-
-RequestFactory::~RequestFactory() {
-	// TODO Auto-generated destructor stub
+RequestFactory::RequestFactory(WSServer* server){
+	this->server=server;
 }
 
 Request* RequestFactory::createRequest(websocketpp::server::handler::connection_ptr con,std::string source){
@@ -24,8 +20,16 @@ Request* RequestFactory::createRequest(websocketpp::server::handler::connection_
 	if(parser->getCurrentValue()){
 		if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(MESSAGE)) == 0){
 			if(parser->nextValue()){
-				return new RequestMessage(parser,con);
+				return new RequestMessage(parser,con,this->server);
 			}
+		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(SEND_SELF_DATA)) == 0){
+			if(parser->nextValue()){
+				return new RequestSendSelfData(parser,con,this->server);
+			}
+		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(REFRESH_OUT_GAME_DATA)) == 0){
+			return new RequestRefreshOutGameData(con,this->server);
 		}
 	}
 	

@@ -14,14 +14,24 @@
 
 class Game {
 public:
-	Game(std::string id);
+	enum PLAYER_COLOR{NONE,YELLOW,RED};
+	static const short MAX_PLAYER=4; 
+	Game(/*std::string,*/Player*);
 	virtual ~Game();
 	bool addPlayer(Player*);
-	bool tryToRemovePlayerByCon(websocketpp::server::connection_ptr); //return Player's con index, -1 if not exit 
+	bool tryToRemovePlayerByCon(websocketpp::server::connection_ptr);
+	//std::string getName()const{return this->name;}
+	unsigned long getID()const{return this->id;}
+	struct InGamePlayerData{
+		PLAYER_COLOR color;
+	};
+	static unsigned long ids;
 private:
-	std::string id;
-	std::list<Player> inGamePlayers;
-	boost::mutex	  lockInGamers;
+	unsigned long						id;
+	std::map<Player*,InGamePlayerData>	inGamePlayers;
+	//std::string							name;
+	Player*								host;
+	
 };
 
 #endif /* GAME_H_ */

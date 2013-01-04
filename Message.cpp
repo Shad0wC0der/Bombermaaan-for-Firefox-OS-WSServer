@@ -7,9 +7,10 @@
 
 #include "Message.h"
 
-Message::Message() {
-	// TODO Auto-generated constructor stub
-
+Message::Message(std::string message,std::string authorID,std::string authorName) {
+	this->message=message;
+	this->authorName=authorName;
+	this->authorID=authorID;
 }
 
 Message::~Message() {

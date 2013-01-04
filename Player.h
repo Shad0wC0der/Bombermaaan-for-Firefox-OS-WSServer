@@ -21,6 +21,7 @@ public:
 	std::string getName() const;
 	void setname(std::string);
 	websocketpp::server::connection_ptr getCon() const; 
+	std::string getID()const{return id;}
 };
 
 #endif /* PLAYER_H_ */

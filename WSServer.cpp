@@ -119,6 +119,7 @@ void WSServer::notifyMessageSent(std::string message,std::string author,std::str
 	for(std::list<Player*>::iterator it = outGamePlayers.begin();it!=outGamePlayers.end();){
 		(*it)->getCon()->send(m);
 	}
+	this->chatBox.addMessage(new Message(message,id,author));
 }
 
 int main(int argc, char* argv[]) {

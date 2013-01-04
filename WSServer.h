@@ -10,6 +10,7 @@
 #include <sstream>
 #include "RequestCoordinator.h"
 #include "Game.h"
+#include "ChatBox.h"
 
 void process(RequestCoordinator*);
 void tickInGame();
@@ -31,6 +32,7 @@ public:
 	void notifyPlayerJoined(std::string,std::string);
 	void notifyMessageSent(std::string,std::string,std::string);
 	void notifyGameCreated(std::string,std::string);
+	std::list<Player*>* getOutGamePlayers(){return &this->outGamePlayers;}
 private:
 	std::list<Player*>	outGamePlayers;
 	std::list<Game> 	games;
@@ -38,6 +40,7 @@ private:
 	boost::mutex 		lockOutGamers;
 	boost::mutex		lockInGamers;
 	RequestFactory*		requestFactory;
+	ChatBox				chatBox;
 };
 
 #endif /* WSSERVER_H_ */

@@ -26,21 +26,24 @@ public:
 	RequestCoordinator* getCoordinator(){return &coordinator;}
 	unsigned long addNewGame(Player*);
 	void removeGame(Game*);
-	void addNewPlayer(connection_ptr,std::string);
-	std::list<Game>* getGames(){return &games;}
-	Player* takeOutGamePlayerByCon(connection_ptr);
-	void notifyPlayerJoined(std::string,std::string);
-	void notifyMessageSent(std::string,std::string,std::string);
-	void notifyGameCreated(std::string,std::string);
-	std::list<Player*>* getOutGamePlayers(){return &this->outGamePlayers;}
+	void addNewPlayer(connection_ptr,const std::string&);
+	ChatBox* getChatBox(){return &chatBox;};
+	void addNewMessage(const std::string&,const std::string&,const std::string&);
+	std::string getOutGameData();
 private:
 	std::list<Player*>	outGamePlayers;
 	std::list<Game> 	games;
 	RequestCoordinator  coordinator;
 	boost::mutex 		lockOutGamers;
 	boost::mutex		lockInGamers;
+	boost::mutex		lockOutGameMessages;
 	RequestFactory*		requestFactory;
 	ChatBox				chatBox;
+	
+	void notifyPlayerJoined(const std::string&,const std::string&);
+	void notifyMessageSent(const std::string&,const std::string&,const std::string&,const std::string&);
+	void notifyGameCreated(const std::string&,const std::string&);
+	void notifyPlayerExited(const std::string&);
 };
 
 #endif /* WSSERVER_H_ */

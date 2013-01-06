@@ -14,9 +14,9 @@
 class WSServer;
 class RequestSendSelfData : public Request{
 public:
-	RequestSendSelfData(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con){this->parser=parser;this->server=server;}
+	RequestSendSelfData(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con),parser(parser),server(server){}
 	void process(void);
-	virtual ~RequestSendSelfData(){parser->~JsonParser();}
+	virtual ~RequestSendSelfData(){delete parser;}
 private:
 	 JsonParser* parser;
 	 WSServer* server;

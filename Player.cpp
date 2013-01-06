@@ -7,7 +7,7 @@
 
 #include "Player.h"
 
-Player::Player(websocketpp::server::connection_ptr con,std::string id,std::string name) {
+Player::Player(websocketpp::server::connection_ptr con,const std::string& id,const std::string& name) {
 	this->con = con;
 	this->id = id;
 	this->name=name;

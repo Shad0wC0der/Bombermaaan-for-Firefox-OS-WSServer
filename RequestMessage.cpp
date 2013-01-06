@@ -9,11 +9,14 @@
 #include "WSServer.h"
 void RequestMessage::process(void){
 	try{	
-		
-		if(!parser->getCurrentValue()->first_child || parser->getCurrentValue()->first_child->type != json_type::JSON_STRING) throw 0;
-		std::string message = (this->parser->getCurrentValue()->first_child->string_value);
-		std::string author = this->parser->getCurrentValue()->next_sibling->string_value;
-		this->server->notifyMessageSent(message,author,this->server->get_con_id(con));
+		json_value* jv = parser->getCurrentValue()->first_child;
+		if(!jv || jv->type != json_type::JSON_STRING) throw 0;
+		std::string message = jv->string_value;
+		jv=jv->next_sibling;
+		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
+		std::string author = jv->string_value;
+		this->server->addNewMessage(message,author,this->server->get_con_id(con));
+
 	}catch(int){
 		con->send("wrong json format");
 	}

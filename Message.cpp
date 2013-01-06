@@ -6,11 +6,13 @@
  */
 
 #include "Message.h"
-
-Message::Message(std::string message,std::string authorID,std::string authorName) {
+Message::Message(const std::string& message, const std::string& authorName, const std::string& authorID) {
 	this->message=message;
 	this->authorName=authorName;
 	this->authorID=authorID;
+	this->next=(Message*)0;
+	
+	this->submitTime=time(NULL);
 }
 
 Message::~Message() {

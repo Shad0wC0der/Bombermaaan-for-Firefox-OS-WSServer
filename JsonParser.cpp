@@ -1,11 +1,11 @@
 #include "JsonParser.h"
 
-JsonParser::JsonParser(std::string source){
+JsonParser::JsonParser(const std::string& source){
 	this->source = source;
 	errorPos = 0;
 	errorDesc = 0;
 	errorLine = 0;
-	allocator = new block_allocator (1 << 10);
+	allocator = new block_allocator (1000<<10);
 
 	root= json_parse((char *)this->source.c_str(), &errorPos, &errorDesc, &errorLine, allocator);
 
@@ -14,7 +14,7 @@ JsonParser::JsonParser(std::string source){
 }
 
 JsonParser::~JsonParser(){
-	allocator->~block_allocator();
+	delete this->allocator;
 }
 
 bool JsonParser::nextValue(){

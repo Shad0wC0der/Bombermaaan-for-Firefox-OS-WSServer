@@ -19,7 +19,7 @@ bool Game::tryToRemovePlayerByCon(websocketpp::server::connection_ptr con){
 	for (std::map<Player*,InGamePlayerData>::iterator it = inGamePlayers.begin(); it!=inGamePlayers.end();){
 		if(it->first->getCon() == con){
 			inGamePlayers.erase(it);
-			it->first->~Player();
+			delete it->first;
 			return true;
 		}else ++it;
 	}

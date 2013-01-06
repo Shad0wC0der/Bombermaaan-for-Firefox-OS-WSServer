@@ -15,9 +15,9 @@
 class WSServer;
 class RequestJoinGame : public Request{
 public:
-	RequestJoinGame(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con){this->server=server;}
+	RequestJoinGame(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con),server(server){}
 	void process(void);
-	virtual ~RequestJoinGame(){}
+	virtual ~RequestJoinGame(){delete parser;}
 private:
 	WSServer* server;
 	JsonParser* parser;

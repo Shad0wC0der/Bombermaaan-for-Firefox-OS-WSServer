@@ -9,7 +9,9 @@
 
 ChatBox::ChatBox() {
 	this->nbMessage=0;
-	this->addMessage=&ChatBox::addMessageLessThanMax;
+	this->first=(Message*)0;
+	this->last=(Message*)0;
+	this->addMessage=std::bind(&ChatBox::addMessageLessThanMax, this, std::placeholders::_1);
 }
 
 ChatBox::~ChatBox() {
@@ -27,14 +29,14 @@ void ChatBox::addMessageLessThanMax(Message* message){
 
 	++this->nbMessage;
 	if(nbMessage>=ChatBox::MAX_MESSAGE)
-		addMessage=&ChatBox::addMessageMoreThanMax;
+		addMessage=std::bind(&ChatBox::addMessageMoreThanMax, this, std::placeholders::_1);
 }
 
 void ChatBox::addMessageMoreThanMax(Message* message){
 	this->last->setNext(message);
 	this->last=message;
 	Message * m = this->first->getNext();
-	this->first->~Message();
+	delete this->first;
 	this->first=m;
 }
 

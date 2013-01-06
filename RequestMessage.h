@@ -13,9 +13,9 @@
 class WSServer;
 class RequestMessage : public Request{
 public:
-	RequestMessage(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con){this->parser=parser;this->server=server;}
+	RequestMessage(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con),parser(parser),server(server){}
 	void process(void);
-	virtual ~RequestMessage(){parser->~JsonParser();}
+	virtual ~RequestMessage(){delete parser;}
 private:
 	 JsonParser* parser;
 	 WSServer* server;

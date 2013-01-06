@@ -12,7 +12,7 @@
 
 class JsonParser{
 public:
-	JsonParser(std::string);
+	JsonParser(const std::string&);
 	virtual ~JsonParser();
 	bool nextValue();
 	json_value* getCurrentValue(){return value;}

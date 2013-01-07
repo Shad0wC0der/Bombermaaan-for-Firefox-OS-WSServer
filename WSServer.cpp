@@ -50,9 +50,11 @@ void WSServer::on_close(websocketpp::server::handler::connection_ptr con){
      std::list<Player*>::const_iterator iPlayer;
      iPlayer = std::find_if(outGamePlayers.cbegin(), outGamePlayers.cend(), [con](Player *p) { return p->getCon() == con; });
      if (iPlayer != outGamePlayers.cend()) {
-		delete (*iPlayer);
-		outGamePlayers.erase(iPlayer);
-		found = true;
+		 std::string id = (*iPlayer)->getID();
+		 delete (*iPlayer);
+		 outGamePlayers.erase(iPlayer);
+		 this->notifyPlayerExited(id);
+		 found = true;
      }
      l1.unlock();
 	 
@@ -114,7 +116,7 @@ void WSServer::addNewPlayer(connection_ptr con,const std::string& name){
 	outGamePlayers.push_back(p);
 }
 void WSServer::addNewMessage(const std::string& message,const std::string& author,const std::string& id){
-	Message* m = new Message(message,id,author);
+	Message* m = new Message(message,author,id);
 	boost::mutex::scoped_lock l2(lockOutGameMessages);
 	this->chatBox.addMessage(m);
 	l2.unlock();
@@ -133,7 +135,7 @@ void WSServer::notifyPlayerJoined(const std::string& id,const std::string& name)
 }
 
 void WSServer::notifyMessageSent(const std::string& message,const std::string& author,const std::string& id,const std::string& submitTime){
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MESSAGE_SENT))+"\",\"value\"={\"message\":\""+message+"\",\"author\":\""+author+"\",\"id\":\""+id+"\",\"submitTime\":\""+submitTime+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MESSAGE_SENT))+"\",\"value\":{\"message\":\""+message+"\",\"author\":\""+author+"\",\"id\":\""+id+"\",\"submitTime\":\""+submitTime+"\"}}";
 	
 	for(Player* p : outGamePlayers){
 		p->getCon()->send(m);
@@ -141,7 +143,15 @@ void WSServer::notifyMessageSent(const std::string& message,const std::string& a
 }
 
 void WSServer::notifyGameCreated(const std::string& id,const std::string& authorName){
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_CREATED))+"\",\"value\"={\"id\":\""+id+"\",\"author\":\""+authorName+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_CREATED))+"\",\"value\":{\"id\":\""+id+"\",\"author\":\""+authorName+"\"}}";
+
+	for(Player* p : outGamePlayers){
+		p->getCon()->send(m);
+	}
+}
+
+void WSServer::notifyPlayerExited(const std::string& id){
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_EXITED))+"\",\"value\":{\"id\":\""+id+"\"}}";
 
 	for(Player* p : outGamePlayers){
 		p->getCon()->send(m);
@@ -197,7 +207,7 @@ std::string WSServer::getOutGameData(){
 		++it;
 		while(it != messages.end()){
 			std::ostringstream oss;
-			oss<<"{\"message\":\""<<(*it)->getMessage()<<"\",\"authorName\":\""<<(*it)->getAuthorName()<<"\",\"authorID\":\""<<(*it)->getAuthorID()<<"\",\"submitTime\":\""<<(*it)->getSubmitTime()<<"\"}";
+			oss<<",{\"message\":\""<<(*it)->getMessage()<<"\",\"authorName\":\""<<(*it)->getAuthorName()<<"\",\"authorID\":\""<<(*it)->getAuthorID()<<"\",\"submitTime\":\""<<(*it)->getSubmitTime()<<"\"}";
 			std::string player=oss.str();
 			response+=player;
 			++it;
@@ -211,7 +221,7 @@ std::string WSServer::getOutGameData(){
 
 int main(int argc, char* argv[]) {
 	try{
-		unsigned short port = 9002;
+		unsigned short port = 27016;
 		size_t worker_threads = 3;
 		//size_t pool_threads = 2;
 

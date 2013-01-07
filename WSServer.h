@@ -44,6 +44,7 @@ private:
 	void notifyMessageSent(const std::string&,const std::string&,const std::string&,const std::string&);
 	void notifyGameCreated(const std::string&,const std::string&);
 	void notifyPlayerExited(const std::string&);
+	void notifyGameDeleted(const std::string&);
 };
 
 #endif /* WSSERVER_H_ */

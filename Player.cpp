@@ -13,11 +13,6 @@ Player::Player(websocketpp::server::connection_ptr con,const std::string& id,con
 	this->name=name;
 }
 
-Player::~Player() {
-	// TODO Auto-generated destructor stub
-}
-
-
 std::string Player::getName()const{
 	return this->name;
 }

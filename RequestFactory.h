@@ -24,6 +24,7 @@ public:
 					   CREATE_GAME,
 					   JOIN_GAME,
 					   NOTIFY_PLAYER_JOINED,
+					   NOTIFY_PLAYER_EXITED,
 					   NOTIFY_MESSAGE_SENT,
 					   NOTIFY_GAME_CREATED};
 

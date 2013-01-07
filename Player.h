@@ -17,7 +17,7 @@ private:
 	std::string							id;
 public:
 	Player(websocketpp::server::connection_ptr,const std::string&,const std::string&);
-	virtual ~Player();
+	virtual ~Player(){}
 	std::string getName() const;
 	void setname(std::string);
 	websocketpp::server::connection_ptr getCon() const; 

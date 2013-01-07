@@ -5,7 +5,7 @@ JsonParser::JsonParser(const std::string& source){
 	errorPos = 0;
 	errorDesc = 0;
 	errorLine = 0;
-	allocator = new block_allocator (1000<<10);
+	allocator = new block_allocator (1<<10);
 
 	root= json_parse((char *)this->source.c_str(), &errorPos, &errorDesc, &errorLine, allocator);
 

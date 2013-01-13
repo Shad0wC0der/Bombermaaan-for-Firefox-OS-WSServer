@@ -15,6 +15,8 @@ JsonParser::JsonParser(const std::string& source){
 
 JsonParser::~JsonParser(){
 	delete this->allocator;
+	delete this->errorDesc;
+	delete this->errorPos;
 }
 
 bool JsonParser::nextValue(){

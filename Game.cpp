@@ -6,20 +6,23 @@
  */
 
 #include "Game.h"
-unsigned long Game::ids = 0;
 
-Game::Game(/*std::string name,*/Player* host) {
-	this->id = Game::ids++;
+Game::Game(/*std::string name,*/Player* host,unsigned int id) {
+	this->id = id;
 	//this->name=name;
 	this->host=host;
 	this->addPlayer(host);
 }
 
-bool Game::tryToRemovePlayerByCon(websocketpp::server::connection_ptr con){
+bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con){
+	bool hostExited=false;
 	for (std::map<Player*,InGamePlayerData>::iterator it = inGamePlayers.begin(); it!=inGamePlayers.end();){
 		if(it->first->getCon() == con){
-			inGamePlayers.erase(it);
+			if(this->host == it->first)hostExited=true;
 			delete it->first;
+			inGamePlayers.erase(it);
+			if(hostExited && !inGamePlayers.empty())
+				host=inGamePlayers.begin()->first;
 			return true;
 		}else ++it;
 	}

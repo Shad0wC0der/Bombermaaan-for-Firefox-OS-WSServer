@@ -12,7 +12,7 @@ RequestFactory::RequestFactory(WSServer* server){
 	this->server=server;
 }
 
-Request* RequestFactory::createRequest(websocketpp::server::handler::connection_ptr con,std::string source){
+Request* RequestFactory::createRequest(const websocketpp::server::handler::connection_ptr& con,const std::string& source){
 	//parsing json
 
 	JsonParser* parser = new JsonParser(source);
@@ -29,7 +29,12 @@ Request* RequestFactory::createRequest(websocketpp::server::handler::connection_
 			}
 		}
 		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(REFRESH_OUT_GAME_DATA)) == 0){
+			delete parser;
 			return new RequestRefreshOutGameData(con,this->server);
+		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(CREATE_GAME)) == 0){
+			delete parser;
+			return new RequestCreateGame(con,this->server);
 		}
 	}
 	

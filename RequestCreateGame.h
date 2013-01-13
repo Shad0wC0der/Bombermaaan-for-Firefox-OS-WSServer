@@ -10,17 +10,15 @@
 #include "RequestFactory.h"
 #include "Request.h"
 #include "Game.h"
-#include "JsonParser.h"
 
 class WSServer;
 class RequestCreateGame : public Request{
 public:
-	RequestCreateGame(JsonParser* parser,websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con),parser(parser),server(server){}
+	RequestCreateGame(const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),server(server){}
 	void process(void);
-	virtual ~RequestCreateGame(){delete parser;}
+	virtual ~RequestCreateGame(){}
 private:
 	WSServer* server;
-	JsonParser* parser;
 };
 
 #endif /* REQUESTCREATEGAME_H_ */

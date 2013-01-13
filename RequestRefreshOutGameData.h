@@ -14,7 +14,7 @@
 class WSServer;
 class RequestRefreshOutGameData : public Request{
 public:
-	RequestRefreshOutGameData(websocketpp::server::handler::connection_ptr con,WSServer* server) : Request(con),server(server){}
+	RequestRefreshOutGameData(const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),server(server){}
 	void process(void);
 	virtual ~RequestRefreshOutGameData(){}
 private:

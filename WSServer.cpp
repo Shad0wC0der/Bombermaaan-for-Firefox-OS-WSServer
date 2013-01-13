@@ -9,25 +9,29 @@
 
 WSServer::WSServer() {
 	this->requestFactory=new RequestFactory(this);
-	Game::ids=0;
+	this->games_ptr=new Game*[WSServer::NB_SIMULTANEOUS_GAMES];
+	for(int i = 0 ; i < WSServer::NB_SIMULTANEOUS_GAMES; i++){
+		games_ptr[i]=((Game*)NULL);
+	}
 }
 
 WSServer::~WSServer() {
 	delete this->requestFactory;
+	for(int i = 0 ; i < WSServer::NB_SIMULTANEOUS_GAMES; i++){
+		if(games_ptr[i]!=((Game*)NULL))
+			delete games_ptr[i];
+	}
+	delete this->games_ptr;
 }
 
-unsigned long WSServer::addNewGame(Player* creator){
+void WSServer::removeGame(unsigned int gameID){
 	boost::mutex::scoped_lock l(lockInGamers);
-	Game g = Game(creator);
-	games.push_back(g);
-	std::ostringstream oss;
-	oss<<g.getID();
-	this->notifyGameCreated(oss.str(),creator->getName());
-	return games.back().getID();
-}
-
-void WSServer::removeGame(Game* game){
-	boost::mutex::scoped_lock l(lockInGamers);
+	std::list<Game*>::const_iterator it= std::find_if(games.cbegin(),
+												games.cend(),
+												[gameID] (Game* g) { return g->getID() == gameID; });
+	games.erase(it);
+	delete games_ptr[gameID];
+	games_ptr[gameID]=(Game*)0;
 }
 
 void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
@@ -36,42 +40,14 @@ void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
 
 void WSServer::on_message(websocketpp::server::handler::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
 	Request* r = this->requestFactory->createRequest(connection,msg->get_payload());
-	std::cout<<msg->get_payload();
-	//if (r!=NULL){
+	std::cout<<msg->get_payload()<<std::endl;
+	if (r!=NULL){
 		coordinator.addRequest(r);
-	//}
+	}
 }
 
 void WSServer::on_close(websocketpp::server::handler::connection_ptr con){
-     bool found = false;
-
-     //recherche dans les joueurs hors jeu
-     boost::mutex::scoped_lock l1(lockOutGamers);
-     std::list<Player*>::const_iterator iPlayer;
-     iPlayer = std::find_if(outGamePlayers.cbegin(), outGamePlayers.cend(), [con](Player *p) { return p->getCon() == con; });
-     if (iPlayer != outGamePlayers.cend()) {
-		 std::string id = (*iPlayer)->getID();
-		 delete (*iPlayer);
-		 outGamePlayers.erase(iPlayer);
-		 this->notifyPlayerExited(id);
-		 found = true;
-     }
-     l1.unlock();
-	 
-     //recherche dans les joueurs en jeu
-     if(!found) {
-          boost::mutex::scoped_lock l2(lockInGamers);
-          for (Game& g : games){
-               if(g.tryToRemovePlayerByCon(con)) {
-                    found = true;
-                    break;
-               }
-          }
-          l2.unlock();
-     }
-
-     if (!found)
-          std::cerr<<"Tried to remove unexisting player."<<std::endl;
+	this->coordinator.addRequest(new RequestClose(con,this));
 }
 
 void process(RequestCoordinator* coordinator){
@@ -88,46 +64,105 @@ void tickInGame(){
 	}
 }
 
-std::string WSServer::get_con_id(websocketpp::server::handler::connection_ptr con) {
+std::string WSServer::get_con_id(const websocketpp::server::handler::connection_ptr& con) {
 	std::stringstream endpoint;
 	//endpoint << con->get_endpoint();
 	endpoint << con;
 	return endpoint.str();
 }
-/*
-Player* WSServer::takeOutGamePlayerByCon(connection_ptr con){
-     boost::unique_lock<boost::mutex> l1(lockOutGamers);
+void WSServer::createGame(const connection_ptr& hostCon){
+	boost::unique_lock<boost::mutex> l1(lockOutGamers);
+	boost::unique_lock<boost::mutex> l2(lockInGamers);
+	if(this->games.size()>=WSServer::NB_SIMULTANEOUS_GAMES)
+		this->notifyError("Impossible de créer une nouvelle partie, nombre maximal de parties simultanées atteint",hostCon);
+	else {
+		std::list<Player*>::const_iterator iPlayer = std::find_if(outGamePlayers.cbegin(),
+																	outGamePlayers.cend(),
+																   [hostCon] (Player *p) { return p->getCon() == hostCon; });
+		Player *p = *iPlayer;
+		outGamePlayers.erase(iPlayer);
+		l1.unlock();
 
-     std::list<Player*>::const_iterator iPlayer = std::find_if(outGamePlayers.cbegin(),
-																outGamePlayers.cend(),
-                                                                [con] (Player *p) { return p->getCon() == con; });
-     Player *p = *iPlayer;
-     outGamePlayers.erase(iPlayer);
+		unsigned long idGame = addNewGame(p);
+		std::ostringstream oss;
+		oss<<idGame;
 
-     l1.unlock();
-     return p;
-}*/
+		this->notifyEnteringRoom(p,games_ptr[idGame]);
+	}
+}
 
-void WSServer::addNewPlayer(connection_ptr con,const std::string& name){
+void WSServer::createMessage(const std::string& message,const std::string& author,const std::string& authorID,const std::string& messageType,const std::string& target){
+
+	Message* m;
+	m = new Message(message,author,authorID);
+
+	if(std::string(messageType).compare(stringify(TO_ALL)) == 0){
+		boost::mutex::scoped_lock l1(lockOutGamers);
+		boost::mutex::scoped_lock l2(lockOutGameMessages);
+		this->chatBox.addMessage(m);
+		this->notifyMessageSent(m->getMessage(),m->getAuthorName(),m->getAuthorID(),m->getSubmitTime());
+	}else if(std::string(messageType).compare(stringify(TO_ROOM)) == 0){
+	
+	}else if(std::string(messageType).compare(stringify(TO_PLAYER)) == 0){
+	
+	}
+}
+
+void WSServer::createPlayer(const connection_ptr& con,const std::string& name){
 	boost::mutex::scoped_lock l(lockOutGamers);
+	this->addNewPlayer(con,name);
+}
+
+unsigned long WSServer::addNewGame(Player* creator){
+	int i;
+	for(i = 0 ; i < WSServer::NB_SIMULTANEOUS_GAMES; i++){
+		if(games_ptr[i]==((Game*)NULL))
+			break;
+	}
+	Game* g = new Game(creator,i);
+	games.push_back(g);
+	games_ptr[i]=games.back();
+	std::ostringstream oss;
+	oss<<g->getID();
+	this->notifyGameCreated(oss.str(),creator->getName());
+	return games.back()->getID();
+}
+
+void WSServer::addNewPlayer(const connection_ptr& con,const std::string& name){
 	Player* p = new Player(con,get_con_id(con),name);
 	this->notifyPlayerJoined(p->getID(),p->getName());
 
 	outGamePlayers.push_back(p);
 }
-void WSServer::addNewMessage(const std::string& message,const std::string& author,const std::string& id){
-	Message* m = new Message(message,author,id);
-	boost::mutex::scoped_lock l2(lockOutGameMessages);
-	this->chatBox.addMessage(m);
-	l2.unlock();
+
+bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int& gameID){
 	boost::mutex::scoped_lock l1(lockOutGamers);
-	this->notifyMessageSent(m->getMessage(),m->getAuthorName(),m->getAuthorID(),m->getSubmitTime());
+	boost::mutex::scoped_lock l2(lockInGamers);
+
+	if(gameID < WSServer::NB_SIMULTANEOUS_GAMES 
+		&& games_ptr[gameID]!=(Game*)0
+		&& games_ptr[gameID]->getNbPlayers() < Game::MAX_PLAYER){
+
+		std::list<Player*>::const_iterator iPlayer = std::find_if(outGamePlayers.cbegin(),
+																	outGamePlayers.cend(),
+																	[playerID] (Player *p) {return p->getID() == playerID;});
+		if (iPlayer != outGamePlayers.cend()) {
+			return false;
+		}else{
+			Player* p = *iPlayer;
+			games_ptr[gameID]->addPlayer(p);
+			outGamePlayers.erase(iPlayer);
+			std::ostringstream oss;
+			oss<<gameID;
+			this->notifyEnteringRoom(p,games_ptr[gameID]);
+			return true;
+		} 
+
+	}else return false;
 }
 
-
-
 void WSServer::notifyPlayerJoined(const std::string& id,const std::string& name){
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_JOINED))+"\",\"value\"={\"name\":\""+name+"\",\"id\":\""+id+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_JOINED))+"\",\"value\":{\"name\":\""+name+"\",\"id\":\""+id+"\"}}";
 
 	for(Player* p : outGamePlayers){
 		p->getCon()->send(m);
@@ -158,19 +193,79 @@ void WSServer::notifyPlayerExited(const std::string& id){
 	}
 }
 
+void WSServer::notifyError(const std::string& error,const connection_ptr& receiver){
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ERROR))+"\",\"value\":{\"error\":\""+error+"\"}}";
+	receiver->send(m);
+}
+
+void WSServer::notifyEnteringRoom(Player* player,Game* game){
+	std::ostringstream oss;
+	oss<<game->getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ENTERING_ROOM))+"\",\"value\":{\"name\":\""+player->getName()+"\",\"id\":\""+player->getID()+"\",\"gameID\":\""+oss.str()+"\"}}";
+	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
+		p.first->getCon()->send(m);
+	}
+}
+
+void WSServer::notifyGameRemoved(const std::string& gameID){
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_REMOVED))+"\",\"value\":{\"id\":\""+gameID+"\"}}";
+	for(Player* p : outGamePlayers){
+		p->getCon()->send(m);
+	}
+}
+
+void WSServer::closeConnection(const connection_ptr& con){
+	bool found = false;
+
+     //recherche dans les joueurs hors jeu
+     boost::mutex::scoped_lock l1(lockOutGamers);
+
+     std::list<Player*>::const_iterator iPlayer;
+     iPlayer = std::find_if(outGamePlayers.cbegin(), outGamePlayers.cend(), [con](Player *p) { return p->getCon() == con; });
+     if (iPlayer != outGamePlayers.cend()) {
+		 std::string id = (*iPlayer)->getID();
+		 delete (*iPlayer);
+		 outGamePlayers.erase(iPlayer);
+		 this->notifyPlayerExited(id);
+		 found = true;
+     }
+	 
+     //recherche dans les joueurs en jeu
+     if(!found) {
+          boost::mutex::scoped_lock l2(lockInGamers);
+          for (Game* g : games){
+               if(g->tryToRemovePlayerByCon(con)) {
+                    found = true;
+					if(g->getNbPlayers() == 0){
+						std::ostringstream oss;
+						oss<<g->getID();
+						this->notifyGameRemoved(oss.str());
+						this->removeGame(g->getID());
+                    break;
+					}
+               }
+          }
+          l2.unlock();
+     }
+
+     if (!found)
+          std::cerr<<"Tried to remove unexisting player."<<std::endl;
+}
+
 std::string WSServer::getOutGameData(){
+	
 	std::string response="{\"type\":\""+std::string(stringify(REFRESH_OUT_GAME_DATA))+"\",\"value\":{\"games\":[";
 	boost::mutex::scoped_lock l1(this->lockInGamers);
 	if(!(this->games.empty())){
-	std::list<Game>::iterator it = this->games.begin();
+	std::list<Game*>::iterator it = this->games.begin();
 	std::ostringstream oss;
-	oss<<it->getID();
+	oss<<(*it)->getID();
 	std::string id=oss.str();
 	response+="\""+id+"\"";
 	++it;
 	while(it != this->games.end()){
 		std::ostringstream oss;
-		oss<<it->getID();
+		oss<<(*it)->getID();
 		std::string id=oss.str();
 		response+=",\""+id+"\"";
 		++it;

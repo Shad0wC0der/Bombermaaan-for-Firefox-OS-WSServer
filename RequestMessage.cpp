@@ -15,7 +15,15 @@ void RequestMessage::process(void){
 		jv=jv->next_sibling;
 		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
 		std::string author = jv->string_value;
-		this->server->addNewMessage(message,author,this->server->get_con_id(con));
+		jv=jv->next_sibling;
+		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
+		std::string messageType = jv->string_value;
+		jv=jv->next_sibling;
+		if(messageType != stringify(TO_ALL)){
+			if(!jv || jv->type != json_type::JSON_STRING)throw 0;
+			std::string target = jv->string_value;
+			this->server->createMessage(message,author,this->server->get_con_id(con),messageType,target);
+		}else this->server->createMessage(message,author,this->server->get_con_id(con),messageType,"NULL");
 
 	}catch(int){
 		con->send("wrong json format");

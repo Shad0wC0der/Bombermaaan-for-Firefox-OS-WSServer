@@ -11,6 +11,7 @@
 #include "RequestMessage.h"
 #include "RequestRefreshOutGameData.h"
 #include "RequestSendSelfData.h"
+#include "RequestCreateGame.h"
 #include "Request.h"
 #include "JsonParser.h"
 #define stringify( name ) # name
@@ -26,11 +27,14 @@ public:
 					   NOTIFY_PLAYER_JOINED,
 					   NOTIFY_PLAYER_EXITED,
 					   NOTIFY_MESSAGE_SENT,
-					   NOTIFY_GAME_CREATED};
+					   NOTIFY_GAME_CREATED,
+					   NOTYFY_GAME_REMOVED,
+					   NOTIFY_ERROR,
+					   NOTIFY_ENTERING_ROOM};
 
 	RequestFactory(WSServer* server);
 	virtual ~RequestFactory(){}
-	Request* createRequest(websocketpp::server::handler::connection_ptr,std::string);
+	Request* createRequest(const websocketpp::server::handler::connection_ptr&,const std::string&);
 private:
 	WSServer* server;
 };

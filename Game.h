@@ -17,6 +17,7 @@
 class Game : boost::noncopyable{
 public:
 	enum PLAYER_COLOR{NONE,YELLOW,RED};
+	static const unsigned short NB_COLORS;
 	static const short MAX_PLAYER=4; 
 	Game(/*std::string,*/Player*,const unsigned short&);
 	virtual ~Game();
@@ -31,6 +32,9 @@ public:
 	unsigned short getNbPlayers(){return this->inGamePlayers.size();}
 	std::map<Player*,InGamePlayerData> getInGamePlayers(){return inGamePlayers;}
 	Map* getMap(){return &map;}
+	bool isColorAvalaible(PLAYER_COLOR);
+	bool isInGame(const websocketpp::server::connection_ptr&);
+	PLAYER_COLOR getColor(const unsigned short&);
 private:
 	unsigned short						id;
 	std::map<Player*,InGamePlayerData>	inGamePlayers;

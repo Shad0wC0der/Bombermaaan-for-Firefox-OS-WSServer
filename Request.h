@@ -82,4 +82,35 @@ private:
 	 JsonParser* parser;
 	 WSServer* server;
 };
+
+class RequestLaunchGame : public Request{
+public:
+	RequestLaunchGame(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
+	void process(void);
+	virtual ~RequestLaunchGame(){delete parser;}
+private:
+	 JsonParser* parser;
+	 WSServer* server;
+};
+
+class RequestSelectMap : public Request{
+public:
+	RequestSelectMap(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
+	void process(void);
+	virtual ~RequestSelectMap(){delete parser;}
+private:
+	 JsonParser* parser;
+	 WSServer* server;
+};
+
+class RequestChooseColor : public Request{
+public:
+	RequestChooseColor(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
+	void process(void);
+	virtual ~RequestChooseColor(){delete parser;}
+private:
+	 JsonParser* parser;
+	 WSServer* server;
+};
+
 #endif /* REQUEST_H_ */

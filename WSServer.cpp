@@ -35,10 +35,23 @@ void WSServer::removeGame(const unsigned short& gameID){
 	games.erase(it);
 	delete games_ptr[gameID];
 	games_ptr[gameID]=(Game*)0;
+
+	if(gameLockers[gameID] != ((boost::mutex*)0)){
+		delete gameLockers[gameID];
+		gameLockers[gameID]=((boost::mutex*)0);
+	}
 }
 
-void WSServer::startGame(const unsigned short& gameID){
+void WSServer::startGame(const unsigned short& gameID,const connection_ptr& con){
 	boost::unique_lock<boost::mutex> l(lockInGamers);
+	if(games_ptr[gameID] == ((Game*)NULL)){
+		this->notifyError("La partie ne peut pas être lancée : la partie n'existe pas",con);
+		return;
+	}
+	if(games_ptr[gameID]->getHost()->getCon() != con){
+		this->notifyError("Seul l'hôte peut lancer une partie",con);
+		return;
+	}
 	this->runningGames.push_back(games_ptr[gameID]);
 	this->notifyGameStarted(games_ptr[gameID]);
 	this->gameLockers[gameID]=new boost::mutex();
@@ -51,7 +64,7 @@ void WSServer::stopGame(const unsigned short& gameID){
 	this->runningGames.erase(iGame);
 	this->notifyGameFinished(games_ptr[gameID]);
 	delete this->gameLockers[gameID];
-	this->gameLockers[gameID]=new boost::mutex();
+	gameLockers[gameID]=((boost::mutex*)NULL);
 }
 
 void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
@@ -182,6 +195,39 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 	}else return false;
 }
 
+void WSServer::selectMapForGame(const unsigned short& mapID,const unsigned short& gameID,const connection_ptr& con){
+	boost::mutex::scoped_lock l(lockInGamers);
+	if(gameID>=WSServer::NB_SIMULTANEOUS_GAMES
+	||games_ptr[gameID] == ((Game*)NULL)
+	||games_ptr[gameID]->getHost()->getCon()!=con
+	||gameLockers[gameID] != ((boost::mutex*)NULL)
+	||Map::NB_SERVER_MAP <= mapID) 
+		return;
+
+	games_ptr[gameID]->getMap()->setSMap(Map::maps[mapID]);
+	for(std::pair<Player*,Game::InGamePlayerData> p : games_ptr[gameID]->getInGamePlayers()){
+		this->sendGameMapData(p.first->getCon(),gameID);
+	}
+}
+
+void WSServer::chooseColor(const unsigned short& gameID, const unsigned short& color, const connection_ptr& con){
+	boost::mutex::scoped_lock l(lockInGamers);
+	Game::PLAYER_COLOR pcolor;
+	if(gameID>=WSServer::NB_SIMULTANEOUS_GAMES
+	||games_ptr[gameID] == ((Game*)NULL)
+	||!games_ptr[gameID]->isInGame(con)
+	||gameLockers[gameID] != ((boost::mutex*)NULL)
+	||!games_ptr[gameID]->isColorAvalaible(pcolor=(games_ptr[gameID]->getColor(color)))) 
+		return;
+
+	//games_ptr[gameID]->getInGamePlayers().
+	std::map<Player*,Game::InGamePlayerData>::iterator iInGamePlayer;
+	iInGamePlayer= std::find_if(games_ptr[gameID]->getInGamePlayers().begin(),games_ptr[gameID]->getInGamePlayers().end(), [con](std::pair<Player*,Game::InGamePlayerData> p) { return p.first->getCon() == con; });
+	iInGamePlayer->second.color=pcolor;
+
+	this->notifyColorChanged(games_ptr[gameID]);
+}
+
 void WSServer::notifyPlayerJoined(const std::string& id,const std::string& name){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_JOINED))+"\",\"value\":{\"name\":\""+name+"\",\"id\":\""+id+"\"}}";
 
@@ -281,6 +327,39 @@ void WSServer::notifyGameFinished(Game* g){
 	}
 }
 
+void WSServer::notifyColorChanged(Game* game){
+	if(game->getInGamePlayers().size() == 0) return;
+
+	std::ostringstream oss1;
+	oss1<<game->getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_COLOR_CHANGED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"colors\":[";
+	
+	std::pair<Player*,Game::InGamePlayerData>** inGamePlayers = new std::pair<Player*,Game::InGamePlayerData>*[game->getInGamePlayers().size()];
+
+	unsigned short i=0;
+	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
+		inGamePlayers[i++] = &p;
+	}
+	std::ostringstream oss2;
+	oss2<<inGamePlayers[0]->second.color;
+	m+="\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"";
+
+	for(unsigned short i = 1 ; i < game->getInGamePlayers().size() ; i++){
+		std::ostringstream oss3;
+		oss3<<inGamePlayers[0]->second.color;
+		m+=",\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"";
+	}
+
+	m+="]}}";
+
+	for(unsigned short i = 0 ; i < game->getInGamePlayers().size() ; i++){
+		inGamePlayers[i]->first->getCon()->send(m);
+	}
+	delete inGamePlayers;
+
+
+}
+
 void WSServer::closeConnection(const connection_ptr& con){
 	bool found = false;
 
@@ -299,10 +378,11 @@ void WSServer::closeConnection(const connection_ptr& con){
 	 
      //recherche dans les joueurs en jeu
      if(!found) {
-          boost::mutex::scoped_lock l2(lockInGamers);
-          for (Game* g : games){
-               if(g->tryToRemovePlayerByCon(con)) {
-                    found = true;
+        boost::mutex::scoped_lock l2(lockInGamers);
+		for (Game* g : games){
+			if(gameLockers[g->getID()] == ((boost::mutex*)NULL)){
+				if(g->tryToRemovePlayerByCon(con)) {
+					found = true;
 					std::ostringstream oss;
 					oss<<g->getID();
 					std::string playerID = oss.str();
@@ -310,12 +390,28 @@ void WSServer::closeConnection(const connection_ptr& con){
 						
 						this->notifyGameRemoved(playerID);
 						this->removeGame(g->getID());
-                    break;
+					break;
 					}else{
 						this->notifyExitingRoom(playerID,g);
 					}
-               }
-          }
+				}
+			}else{
+				boost::mutex::scoped_lock l3(*gameLockers[g->getID()]);
+				if(g->tryToRemovePlayerByCon(con)) {
+					found = true;
+					std::ostringstream oss;
+					oss<<g->getID();
+					std::string playerID = oss.str();
+					if(g->getNbPlayers() == 0){
+						this->notifyGameRemoved(playerID);
+						this->removeGame(g->getID());
+					break;
+					}else{
+						this->notifyExitingRoom(playerID,g);
+					}
+				}
+			}
+		}
           l2.unlock();
      }
 

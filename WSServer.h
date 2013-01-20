@@ -11,7 +11,6 @@
 #include "RequestCoordinator.h"
 #include "Game.h"
 #include "ChatBox.h"
-#include "RequestClose.h"
 
 void process(RequestCoordinator*);
 void tickInGame();
@@ -19,6 +18,7 @@ class WSServer : public websocketpp::server::handler {
 public:
 	static const int				IN_GAME_TICK = 80;
 	static const int				NB_SIMULTANEOUS_GAMES=50;
+
 	void							on_open(connection_ptr);
 	void							on_message(connection_ptr,message_ptr);
 	void							on_close(connection_ptr);
@@ -34,7 +34,12 @@ public:
 	void							createGame(const connection_ptr&);
 	void							createPlayer(const connection_ptr&,const std::string&);
 	void							createMessage(const std::string&,const std::string&,const std::string&,const std::string&,const std::string&);
+	void							selectMapForGame(const unsigned short&,const unsigned short&,const connection_ptr&);
 	void							closeConnection(const connection_ptr&);
+	void							startGame(const unsigned short&,const connection_ptr&);
+	void							stopGame(const unsigned short&);
+	void							chooseColor(const unsigned short&,const unsigned short&,const connection_ptr&);
+
 private:
 	std::list<Player*>				outGamePlayers;
 	std::list<Game*> 				games;
@@ -51,8 +56,6 @@ private:
 	unsigned long					addNewGame(Player*);
 	void							addNewPlayer(const connection_ptr&,const std::string&);
 	void							removeGame(const unsigned short&);
-	void							startGame(const unsigned short&);
-	void							stopGame(const unsigned short&);
 
 	void notifyPlayerJoined(const std::string&,const std::string&);
 	void notifyMessageSent(const std::string&,const std::string&,const std::string&,const std::string&);
@@ -67,6 +70,7 @@ private:
 	void sendGameMapData(const connection_ptr&, const unsigned short&);
 	void notifyGameStarted(Game*);
 	void notifyGameFinished(Game*);
+	void notifyColorChanged(Game*);
 };
 
 #endif /* WSSERVER_H_ */

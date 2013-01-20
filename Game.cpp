@@ -7,6 +7,8 @@
 
 #include "Game.h"
 
+const unsigned short Game::NB_COLORS = 3;
+
 Game::Game(/*std::string name,*/Player* host,const unsigned short& id) {
 	this->id = id;
 	//this->name=name;
@@ -42,4 +44,37 @@ bool Game::addPlayer(Player* player){
 	}
 	return false;
 }
+
+bool Game::isColorAvalaible(PLAYER_COLOR color){
+	if(color < NB_COLORS)
+		return false;
+
+	for (std::pair<Player*,InGamePlayerData> p : this->getInGamePlayers()){
+		if(p.second.color == color)
+			return false;
+	}
+
+	return true;
+}
+
+bool Game::isInGame(const websocketpp::server::connection_ptr& con){
+	for (std::pair<Player*,InGamePlayerData> p : this->getInGamePlayers()){
+		if(p.first->getCon()==con)
+			return true;
+	}
+
+	return false;
+}
+
+Game::PLAYER_COLOR Game::getColor(const unsigned short& color){
+	switch(color){
+	case 1:
+		return PLAYER_COLOR::YELLOW;break;
+	case 2:
+		return PLAYER_COLOR::RED;break;
+	default:
+		return PLAYER_COLOR::NONE;break;
+	}
+}
+
 

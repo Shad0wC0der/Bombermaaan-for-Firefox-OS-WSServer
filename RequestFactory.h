@@ -8,10 +8,6 @@
 #ifndef REQUESTFACTORY_H_
 #define REQUESTFACTORY_H_
 #include "vjson/json.h"
-#include "RequestMessage.h"
-#include "RequestRefreshOutGameData.h"
-#include "RequestSendSelfData.h"
-#include "RequestCreateGame.h"
 #include "Request.h"
 #include "JsonParser.h"
 #define stringify( name ) # name
@@ -38,7 +34,6 @@ public:
 					   GAME_MAP_DATA,
 					   LAUNCH_GAME,
 					   NOTIFY_COLOR_CHANGED,
-					   NOTIFY_AVAILABLE_COLOR,
 					   SELECT_SERVER_MAP,
 					   CHOOSE_COLOR,
 					   NOTIFY_GAME_STARTED,

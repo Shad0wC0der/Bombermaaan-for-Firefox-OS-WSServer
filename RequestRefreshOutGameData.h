@@ -12,13 +12,6 @@
 #include "Game.h"
 
 class WSServer;
-class RequestRefreshOutGameData : public Request{
-public:
-	RequestRefreshOutGameData(const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),server(server){}
-	void process(void);
-	virtual ~RequestRefreshOutGameData(){}
-private:
-	WSServer* server;
-};
+
 
 #endif /* REQUESTREFRESHOUTGAMEDATA_H_ */

@@ -10,5 +10,5 @@
 
 void RequestRefreshOutGameData::process(void){
 	
-	con->send(this->server->getOutGameData());
+	
 }

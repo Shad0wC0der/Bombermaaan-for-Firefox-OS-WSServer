@@ -7,7 +7,7 @@
 
 #include "Game.h"
 
-Game::Game(/*std::string name,*/Player* host,unsigned int id) {
+Game::Game(/*std::string name,*/Player* host,const unsigned short& id) {
 	this->id = id;
 	//this->name=name;
 	this->host=host;

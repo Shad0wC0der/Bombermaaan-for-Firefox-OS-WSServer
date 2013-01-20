@@ -9,5 +9,5 @@
 #include "WSServer.h"
 
 void RequestCreateGame::process(void){
-	this->server->createGame(this->con);
+	
 }

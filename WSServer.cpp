@@ -13,6 +13,10 @@ WSServer::WSServer() {
 	for(int i = 0 ; i < WSServer::NB_SIMULTANEOUS_GAMES; i++){
 		games_ptr[i]=((Game*)NULL);
 	}
+	this->gameLockers=new boost::mutex*[WSServer::NB_SIMULTANEOUS_GAMES];
+	for(int i = 0 ; i < WSServer::NB_SIMULTANEOUS_GAMES; i++){
+		gameLockers[i]=((boost::mutex*)NULL);
+	}
 }
 
 WSServer::~WSServer() {
@@ -24,8 +28,7 @@ WSServer::~WSServer() {
 	delete this->games_ptr;
 }
 
-void WSServer::removeGame(unsigned int gameID){
-	boost::mutex::scoped_lock l(lockInGamers);
+void WSServer::removeGame(const unsigned short& gameID){
 	std::list<Game*>::const_iterator it= std::find_if(games.cbegin(),
 												games.cend(),
 												[gameID] (Game* g) { return g->getID() == gameID; });
@@ -34,9 +37,27 @@ void WSServer::removeGame(unsigned int gameID){
 	games_ptr[gameID]=(Game*)0;
 }
 
+void WSServer::startGame(const unsigned short& gameID){
+	boost::unique_lock<boost::mutex> l(lockInGamers);
+	this->runningGames.push_back(games_ptr[gameID]);
+	this->notifyGameStarted(games_ptr[gameID]);
+	this->gameLockers[gameID]=new boost::mutex();
+}
+
+void WSServer::stopGame(const unsigned short& gameID){
+	boost::unique_lock<boost::mutex> l(lockInGamers);
+	std::list<Game*>::const_iterator iGame;
+	iGame = std::find_if(this->runningGames.cbegin(), this->runningGames.cend(), [gameID](Game* game) { return game->getID() == gameID; });
+	this->runningGames.erase(iGame);
+	this->notifyGameFinished(games_ptr[gameID]);
+	delete this->gameLockers[gameID];
+	this->gameLockers[gameID]=new boost::mutex();
+}
+
 void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
 	//this->addNewPlayer(con);
 }
+
 
 void WSServer::on_message(websocketpp::server::handler::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
 	Request* r = this->requestFactory->createRequest(connection,msg->get_payload());
@@ -214,6 +235,52 @@ void WSServer::notifyGameRemoved(const std::string& gameID){
 	}
 }
 
+void WSServer::notifyExitingRoom(const std::string& playerID,Game* game){
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_EXITING_ROOM))+"\",\"value\":{\"playerID\":\""+playerID+"\"}}";
+	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
+		p.first->getCon()->send(m);
+	}
+}
+
+void WSServer::sendGameMapList(const connection_ptr& con){
+	if(Map::NB_SERVER_MAP>0){
+		std::string m = "{\"type\":\""+std::string(stringify(GAME_MAP_LIST))+"\",\"value\":{\"maps\":[\""+Map::maps[0]+"\"";
+		for(int i = 1 ; i < Map::NB_SERVER_MAP ; i++){
+			m+=",\""+Map::maps[i]+"\"";
+		}
+		m+="]}}";
+		con->send(m);
+	}else{
+		this->notifyError("Pas de map disponible sur le serveur",con);
+	}
+}
+
+void WSServer::sendGameMapData(const connection_ptr& con,const unsigned short& gameID){
+	std::ostringstream oss;
+	oss<<gameID;
+
+	std::string m = "{\"type\":\""+std::string(stringify(GAME_MAP_DATA))+"\",\"value\":{\"id\":\""+oss.str()+"\",\"map\":\""+games_ptr[gameID]->getMap()->getCurrentSMap()+"\"}";
+	con->send(m);
+}
+
+void WSServer::notifyGameStarted(Game* g){
+	std::ostringstream oss;
+	oss<<g->getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_STARTED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
+	for (std::pair<Player*,Game::InGamePlayerData> p : g->getInGamePlayers()){
+		p.first->getCon()->send(m);
+	}
+}
+
+void WSServer::notifyGameFinished(Game* g){
+	std::ostringstream oss;
+	oss<<g->getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_FINISHED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
+	for (std::pair<Player*,Game::InGamePlayerData> p : g->getInGamePlayers()){
+		p.first->getCon()->send(m);
+	}
+}
+
 void WSServer::closeConnection(const connection_ptr& con){
 	bool found = false;
 
@@ -236,12 +303,16 @@ void WSServer::closeConnection(const connection_ptr& con){
           for (Game* g : games){
                if(g->tryToRemovePlayerByCon(con)) {
                     found = true;
+					std::ostringstream oss;
+					oss<<g->getID();
+					std::string playerID = oss.str();
 					if(g->getNbPlayers() == 0){
-						std::ostringstream oss;
-						oss<<g->getID();
-						this->notifyGameRemoved(oss.str());
+						
+						this->notifyGameRemoved(playerID);
 						this->removeGame(g->getID());
                     break;
+					}else{
+						this->notifyExitingRoom(playerID,g);
 					}
                }
           }

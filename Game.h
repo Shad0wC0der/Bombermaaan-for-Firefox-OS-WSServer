@@ -10,6 +10,7 @@
 #include <websocketpp/websocketpp.hpp>
 #include <map>
 #include <list>
+#include <utility>
 #include "Map.h"
 #include "Player.h"
 #include "RequestFactory.h"

@@ -8,6 +8,8 @@
 #ifndef WSSERVER_H_
 #define WSSERVER_H_
 #include <sstream>
+#include <algorithm>
+#include <list>
 #include "RequestCoordinator.h"
 #include "Game.h"
 #include "ChatBox.h"
@@ -19,10 +21,10 @@ public:
 	static const int				IN_GAME_TICK = 80;
 	static const int				NB_SIMULTANEOUS_GAMES=50;
 
-	void							on_open(connection_ptr);
-	void							on_message(connection_ptr,message_ptr);
-	void							on_close(connection_ptr);
-	std::string						get_con_id(const connection_ptr&);
+	void							on_open(websocketpp::server::connection_ptr);
+	void							on_message(websocketpp::server::connection_ptr,message_ptr);
+	void							on_close(websocketpp::server::connection_ptr);
+	std::string						get_con_id(const websocketpp::server::connection_ptr&);
 	
 									WSServer();
 	virtual							~WSServer();
@@ -31,14 +33,14 @@ public:
 	ChatBox*						getChatBox(){return &chatBox;};
 	std::string						getOutGameData();
 	bool							switchPlayerToGame(const std::string&,const unsigned int&);
-	void							createGame(const connection_ptr&);
-	void							createPlayer(const connection_ptr&,const std::string&);
+	void							createGame(const websocketpp::server::connection_ptr&);
+	void							createPlayer(const websocketpp::server::connection_ptr&,const std::string&);
 	void							createMessage(const std::string&,const std::string&,const std::string&,const std::string&,const std::string&);
-	void							selectMapForGame(const unsigned short&,const unsigned short&,const connection_ptr&);
-	void							closeConnection(const connection_ptr&);
-	void							startGame(const unsigned short&,const connection_ptr&);
+	void							selectMapForGame(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
+	void							closeConnection(const websocketpp::server::connection_ptr&);
+	void							startGame(const unsigned short&,const websocketpp::server::connection_ptr&);
 	void							stopGame(const unsigned short&);
-	void							chooseColor(const unsigned short&,const unsigned short&,const connection_ptr&);
+	void							chooseColor(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
 
 private:
 	std::list<Player*>				outGamePlayers;
@@ -54,7 +56,7 @@ private:
 	ChatBox							chatBox;
 
 	unsigned long					addNewGame(Player*);
-	void							addNewPlayer(const connection_ptr&,const std::string&);
+	void							addNewPlayer(const websocketpp::server::connection_ptr&,const std::string&);
 	void							removeGame(const unsigned short&);
 
 	void notifyPlayerJoined(const std::string&,const std::string&);

@@ -29,8 +29,8 @@ WSServer::~WSServer() {
 }
 
 void WSServer::removeGame(const unsigned short& gameID){
-	std::list<Game*>::const_iterator it= std::find_if(games.cbegin(),
-												games.cend(),
+	std::list<Game*>::iterator it= std::find_if(games.begin(),
+												games.end(),
 												[gameID] (Game* g) { return g->getID() == gameID; });
 	games.erase(it);
 	delete games_ptr[gameID];
@@ -42,7 +42,7 @@ void WSServer::removeGame(const unsigned short& gameID){
 	}
 }
 
-void WSServer::startGame(const unsigned short& gameID,const connection_ptr& con){
+void WSServer::startGame(const unsigned short& gameID,const websocketpp::server::connection_ptr& con){
 	boost::unique_lock<boost::mutex> l(lockInGamers);
 	if(games_ptr[gameID] == ((Game*)NULL)){
 		this->notifyError("La partie ne peut pas être lancée : la partie n'existe pas",con);
@@ -59,20 +59,20 @@ void WSServer::startGame(const unsigned short& gameID,const connection_ptr& con)
 
 void WSServer::stopGame(const unsigned short& gameID){
 	boost::unique_lock<boost::mutex> l(lockInGamers);
-	std::list<Game*>::const_iterator iGame;
-	iGame = std::find_if(this->runningGames.cbegin(), this->runningGames.cend(), [gameID](Game* game) { return game->getID() == gameID; });
+	std::list<Game*>::iterator iGame;
+	iGame = std::find_if(this->runningGames.begin(), this->runningGames.end(), [gameID](Game* game) { return game->getID() == gameID; });
 	this->runningGames.erase(iGame);
 	this->notifyGameFinished(games_ptr[gameID]);
 	delete this->gameLockers[gameID];
 	gameLockers[gameID]=((boost::mutex*)NULL);
 }
 
-void WSServer::on_open(websocketpp::server::handler::connection_ptr con) {
+void WSServer::on_open(websocketpp::server::connection_ptr con) {
 	//this->addNewPlayer(con);
 }
 
 
-void WSServer::on_message(websocketpp::server::handler::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
+void WSServer::on_message(websocketpp::server::connection_ptr connection,websocketpp::server::handler::message_ptr msg) {
 	Request* r = this->requestFactory->createRequest(connection,msg->get_payload());
 	std::cout<<msg->get_payload()<<std::endl;
 	if (r!=NULL){
@@ -80,7 +80,7 @@ void WSServer::on_message(websocketpp::server::handler::connection_ptr connectio
 	}
 }
 
-void WSServer::on_close(websocketpp::server::handler::connection_ptr con){
+void WSServer::on_close(websocketpp::server::connection_ptr con){
 	this->coordinator.addRequest(new RequestClose(con,this));
 }
 
@@ -104,14 +104,14 @@ std::string WSServer::get_con_id(const websocketpp::server::handler::connection_
 	endpoint << con;
 	return endpoint.str();
 }
-void WSServer::createGame(const connection_ptr& hostCon){
+void WSServer::createGame(const websocketpp::server::connection_ptr& hostCon){
 	boost::unique_lock<boost::mutex> l1(lockOutGamers);
 	boost::unique_lock<boost::mutex> l2(lockInGamers);
 	if(this->games.size()>=WSServer::NB_SIMULTANEOUS_GAMES)
 		this->notifyError("Impossible de créer une nouvelle partie, nombre maximal de parties simultanées atteint",hostCon);
 	else {
-		std::list<Player*>::const_iterator iPlayer = std::find_if(outGamePlayers.cbegin(),
-																	outGamePlayers.cend(),
+		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
+																	outGamePlayers.end(),
 																   [hostCon] (Player *p) { return p->getCon() == hostCon; });
 		Player *p = *iPlayer;
 		outGamePlayers.erase(iPlayer);
@@ -142,7 +142,7 @@ void WSServer::createMessage(const std::string& message,const std::string& autho
 	}
 }
 
-void WSServer::createPlayer(const connection_ptr& con,const std::string& name){
+void WSServer::createPlayer(const websocketpp::server::connection_ptr& con,const std::string& name){
 	boost::mutex::scoped_lock l(lockOutGamers);
 	this->addNewPlayer(con,name);
 }
@@ -162,7 +162,7 @@ unsigned long WSServer::addNewGame(Player* creator){
 	return games.back()->getID();
 }
 
-void WSServer::addNewPlayer(const connection_ptr& con,const std::string& name){
+void WSServer::addNewPlayer(const websocketpp::server::connection_ptr& con,const std::string& name){
 	Player* p = new Player(con,get_con_id(con),name);
 	this->notifyPlayerJoined(p->getID(),p->getName());
 
@@ -177,10 +177,10 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 		&& games_ptr[gameID]!=(Game*)0
 		&& games_ptr[gameID]->getNbPlayers() < Game::MAX_PLAYER){
 
-		std::list<Player*>::const_iterator iPlayer = std::find_if(outGamePlayers.cbegin(),
-																	outGamePlayers.cend(),
+		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
+																	outGamePlayers.end(),
 																	[playerID] (Player *p) {return p->getID() == playerID;});
-		if (iPlayer != outGamePlayers.cend()) {
+		if (iPlayer != outGamePlayers.end()) {
 			return false;
 		}else{
 			Player* p = *iPlayer;
@@ -195,7 +195,7 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 	}else return false;
 }
 
-void WSServer::selectMapForGame(const unsigned short& mapID,const unsigned short& gameID,const connection_ptr& con){
+void WSServer::selectMapForGame(const unsigned short& mapID,const unsigned short& gameID,const websocketpp::server::connection_ptr& con){
 	boost::mutex::scoped_lock l(lockInGamers);
 	if(gameID>=WSServer::NB_SIMULTANEOUS_GAMES
 	||games_ptr[gameID] == ((Game*)NULL)
@@ -210,7 +210,7 @@ void WSServer::selectMapForGame(const unsigned short& mapID,const unsigned short
 	}
 }
 
-void WSServer::chooseColor(const unsigned short& gameID, const unsigned short& color, const connection_ptr& con){
+void WSServer::chooseColor(const unsigned short& gameID, const unsigned short& color, const websocketpp::server::connection_ptr& con){
 	boost::mutex::scoped_lock l(lockInGamers);
 	Game::PLAYER_COLOR pcolor;
 	if(gameID>=WSServer::NB_SIMULTANEOUS_GAMES
@@ -260,7 +260,7 @@ void WSServer::notifyPlayerExited(const std::string& id){
 	}
 }
 
-void WSServer::notifyError(const std::string& error,const connection_ptr& receiver){
+void WSServer::notifyError(const std::string& error,const websocketpp::server::connection_ptr& receiver){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ERROR))+"\",\"value\":{\"error\":\""+error+"\"}}";
 	receiver->send(m);
 }
@@ -288,7 +288,7 @@ void WSServer::notifyExitingRoom(const std::string& playerID,Game* game){
 	}
 }
 
-void WSServer::sendGameMapList(const connection_ptr& con){
+void WSServer::sendGameMapList(const websocketpp::server::connection_ptr& con){
 	if(Map::NB_SERVER_MAP>0){
 		std::string m = "{\"type\":\""+std::string(stringify(GAME_MAP_LIST))+"\",\"value\":{\"maps\":[\""+Map::maps[0]+"\"";
 		for(int i = 1 ; i < Map::NB_SERVER_MAP ; i++){
@@ -301,7 +301,7 @@ void WSServer::sendGameMapList(const connection_ptr& con){
 	}
 }
 
-void WSServer::sendGameMapData(const connection_ptr& con,const unsigned short& gameID){
+void WSServer::sendGameMapData(const websocketpp::server::connection_ptr& con,const unsigned short& gameID){
 	std::ostringstream oss;
 	oss<<gameID;
 
@@ -360,15 +360,15 @@ void WSServer::notifyColorChanged(Game* game){
 
 }
 
-void WSServer::closeConnection(const connection_ptr& con){
+void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
 	bool found = false;
 
      //recherche dans les joueurs hors jeu
      boost::mutex::scoped_lock l1(lockOutGamers);
 
-     std::list<Player*>::const_iterator iPlayer;
-     iPlayer = std::find_if(outGamePlayers.cbegin(), outGamePlayers.cend(), [con](Player *p) { return p->getCon() == con; });
-     if (iPlayer != outGamePlayers.cend()) {
+     std::list<Player*>::iterator iPlayer;
+     iPlayer = std::find_if(outGamePlayers.begin(), outGamePlayers.end(), [con](Player *p) { return p->getCon() == con; });
+     if (iPlayer != outGamePlayers.end()) {
 		 std::string id = (*iPlayer)->getID();
 		 delete (*iPlayer);
 		 outGamePlayers.erase(iPlayer);

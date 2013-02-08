@@ -1,5 +1,6 @@
 #ifndef BLOCK_ALLOCATOR_H
 #define BLOCK_ALLOCATOR_H
+#include <cstddef>
 
 class block_allocator
 {

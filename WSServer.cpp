@@ -113,6 +113,7 @@ void WSServer::createGame(const websocketpp::server::connection_ptr& hostCon){
 		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
 																	outGamePlayers.end(),
 																   [hostCon] (Player *p) { return p->getCon() == hostCon; });
+		if (iPlayer == outGamePlayers.end()) return ;//securité
 		Player *p = *iPlayer;
 		outGamePlayers.erase(iPlayer);
 		l1.unlock();

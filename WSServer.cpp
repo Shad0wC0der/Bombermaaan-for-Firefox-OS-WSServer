@@ -181,7 +181,7 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
 																	outGamePlayers.end(),
 																	[playerID] (Player *p) {return p->getID() == playerID;});
-		if (iPlayer != outGamePlayers.end()) {
+		if (iPlayer == outGamePlayers.end()) {
 			return false;
 		}else{
 			Player* p = *iPlayer;

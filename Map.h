@@ -10,6 +10,11 @@
 #include <sstream>
 #include "Utils.h"
 
+struct Position{
+	unsigned short int x;
+	unsigned short int y;
+};
+
 class Map {
 public:
 	static const std::string maps[];
@@ -21,15 +26,21 @@ public:
 	std::string getSMap()const{return this->smap;}
 	void setSMap(const std::string&);
 	std::string getCurrentSMap()const;
+	unsigned short getWidth()const{return this->width;}
+	unsigned short getHeight()const{return this->height;}
+	Position getPlayerPosition(const int& index)const{return this->playersPositions[index];};
+	unsigned short ** getBlocks()const{return this->map;}
+	bool couldBeAPath(const unsigned short& x, const unsigned short& y);
 
 private:
 	unsigned short width,
-				   height;
+				   height,
+				   nbPlayers;
+	Position*	   playersPositions;
 	unsigned short** map;
 	std::string smap;
-
 	void init();
-
+	bool launchable;
 };
 
 #endif /* MAP_H_ */

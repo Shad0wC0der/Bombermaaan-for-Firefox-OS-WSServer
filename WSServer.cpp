@@ -53,7 +53,7 @@ void WSServer::startGame(const unsigned short& gameID,const websocketpp::server:
 		return;
 	}
 	this->runningGames.push_back(games_ptr[gameID]);
-	this->notifyGameStarted(games_ptr[gameID]);
+	games_ptr[gameID]->startGame();
 	this->gameLockers[gameID]=new boost::mutex();
 }
 
@@ -62,7 +62,7 @@ void WSServer::stopGame(const unsigned short& gameID){
 	std::list<Game*>::iterator iGame;
 	iGame = std::find_if(this->runningGames.begin(), this->runningGames.end(), [gameID](Game* game) { return game->getID() == gameID; });
 	this->runningGames.erase(iGame);
-	this->notifyGameFinished(games_ptr[gameID]);
+	games_ptr[gameID]->notifyGameFinished();
 	delete this->gameLockers[gameID];
 	gameLockers[gameID]=((boost::mutex*)NULL);
 }
@@ -92,9 +92,12 @@ void process(RequestCoordinator* coordinator){
     }
 }
 
-void tickInGame(){
+void WSServer::tickInGame(){
 	while(1){
-		boost::this_thread::sleep(boost::posix_time::seconds(WSServer::IN_GAME_TICK) );
+		boost::this_thread::sleep(boost::posix_time::seconds(WSServer::IN_GAME_TICK));
+		for(Game* game : this->runningGames){
+			game->perform();
+		}
 	}
 }
 
@@ -113,7 +116,11 @@ void WSServer::createGame(const websocketpp::server::connection_ptr& hostCon){
 		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
 																	outGamePlayers.end(),
 																   [hostCon] (Player *p) { return p->getCon() == hostCon; });
-		if (iPlayer == outGamePlayers.end()) return ;//securité
+		//securité
+		if (iPlayer == outGamePlayers.end()){
+			this->notifyError("Joueur hôte non trouvé dans la liste",hostCon);
+			return ;
+		}
 		Player *p = *iPlayer;
 		outGamePlayers.erase(iPlayer);
 		l1.unlock();
@@ -122,7 +129,7 @@ void WSServer::createGame(const websocketpp::server::connection_ptr& hostCon){
 		std::ostringstream oss;
 		oss<<idGame;
 
-		this->notifyEnteringRoom(p,games_ptr[idGame]);
+		games_ptr[idGame]->notifyEnteringRoom(p);
 	}
 }
 
@@ -154,7 +161,7 @@ unsigned long WSServer::addNewGame(Player* creator){
 		if(games_ptr[i]==((Game*)NULL))
 			break;
 	}
-	Game* g = new Game(creator,i);
+	Game* g = new Game(creator,i,this);
 	games.push_back(g);
 	games_ptr[i]=games.back();
 	std::ostringstream oss;
@@ -189,7 +196,7 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 			outGamePlayers.erase(iPlayer);
 			std::ostringstream oss;
 			oss<<gameID;
-			this->notifyEnteringRoom(p,games_ptr[gameID]);
+			games_ptr[gameID]->notifyEnteringRoom(p);
 			return true;
 		} 
 
@@ -206,27 +213,23 @@ void WSServer::selectMapForGame(const unsigned short& mapID,const unsigned short
 		return;
 
 	games_ptr[gameID]->getMap()->setSMap(Map::maps[mapID]);
-	for(std::pair<Player*,Game::InGamePlayerData> p : games_ptr[gameID]->getInGamePlayers()){
-		this->sendGameMapData(p.first->getCon(),gameID);
+
+	for(int i = 0 ; i < games_ptr[gameID]->getNbPlayers(); i++){
+		this->sendGameMapData(games_ptr[gameID]->getPlayer(i)->getCon(),gameID);
 	}
 }
 
 void WSServer::chooseColor(const unsigned short& gameID, const unsigned short& color, const websocketpp::server::connection_ptr& con){
 	boost::mutex::scoped_lock l(lockInGamers);
-	Game::PLAYER_COLOR pcolor;
 	if(gameID>=WSServer::NB_SIMULTANEOUS_GAMES
 	||games_ptr[gameID] == ((Game*)NULL)
 	||!games_ptr[gameID]->isInGame(con)
-	||gameLockers[gameID] != ((boost::mutex*)NULL)
-	||!games_ptr[gameID]->isColorAvalaible(pcolor=(games_ptr[gameID]->getColor(color)))) 
+	||gameLockers[gameID] != ((boost::mutex*)NULL))
 		return;
 
-	//games_ptr[gameID]->getInGamePlayers().
-	std::map<Player*,Game::InGamePlayerData>::iterator iInGamePlayer;
-	iInGamePlayer= std::find_if(games_ptr[gameID]->getInGamePlayers().begin(),games_ptr[gameID]->getInGamePlayers().end(), [con](std::pair<Player*,Game::InGamePlayerData> p) { return p.first->getCon() == con; });
-	iInGamePlayer->second.color=pcolor;
+	games_ptr[gameID]->changePlayerColor(con,color);
 
-	this->notifyColorChanged(games_ptr[gameID]);
+	games_ptr[gameID]->notifyColorChanged();
 }
 
 void WSServer::notifyPlayerJoined(const std::string& id,const std::string& name){
@@ -266,26 +269,10 @@ void WSServer::notifyError(const std::string& error,const websocketpp::server::c
 	receiver->send(m);
 }
 
-void WSServer::notifyEnteringRoom(Player* player,Game* game){
-	std::ostringstream oss;
-	oss<<game->getID();
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ENTERING_ROOM))+"\",\"value\":{\"name\":\""+player->getName()+"\",\"id\":\""+player->getID()+"\",\"gameID\":\""+oss.str()+"\"}}";
-	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
-		p.first->getCon()->send(m);
-	}
-}
-
 void WSServer::notifyGameRemoved(const std::string& gameID){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_REMOVED))+"\",\"value\":{\"id\":\""+gameID+"\"}}";
 	for(Player* p : outGamePlayers){
 		p->getCon()->send(m);
-	}
-}
-
-void WSServer::notifyExitingRoom(const std::string& playerID,Game* game){
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_EXITING_ROOM))+"\",\"value\":{\"playerID\":\""+playerID+"\"}}";
-	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
-		p.first->getCon()->send(m);
 	}
 }
 
@@ -308,57 +295,6 @@ void WSServer::sendGameMapData(const websocketpp::server::connection_ptr& con,co
 
 	std::string m = "{\"type\":\""+std::string(stringify(GAME_MAP_DATA))+"\",\"value\":{\"id\":\""+oss.str()+"\",\"map\":\""+games_ptr[gameID]->getMap()->getCurrentSMap()+"\"}";
 	con->send(m);
-}
-
-void WSServer::notifyGameStarted(Game* g){
-	std::ostringstream oss;
-	oss<<g->getID();
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_STARTED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
-	for (std::pair<Player*,Game::InGamePlayerData> p : g->getInGamePlayers()){
-		p.first->getCon()->send(m);
-	}
-}
-
-void WSServer::notifyGameFinished(Game* g){
-	std::ostringstream oss;
-	oss<<g->getID();
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_FINISHED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
-	for (std::pair<Player*,Game::InGamePlayerData> p : g->getInGamePlayers()){
-		p.first->getCon()->send(m);
-	}
-}
-
-void WSServer::notifyColorChanged(Game* game){
-	if(game->getInGamePlayers().size() == 0) return;
-
-	std::ostringstream oss1;
-	oss1<<game->getID();
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_COLOR_CHANGED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"colors\":[";
-	
-	std::pair<Player*,Game::InGamePlayerData>** inGamePlayers = new std::pair<Player*,Game::InGamePlayerData>*[game->getInGamePlayers().size()];
-
-	unsigned short i=0;
-	for(std::pair<Player*,Game::InGamePlayerData> p : game->getInGamePlayers()){
-		inGamePlayers[i++] = &p;
-	}
-	std::ostringstream oss2;
-	oss2<<inGamePlayers[0]->second.color;
-	m+="\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"";
-
-	for(unsigned short i = 1 ; i < game->getInGamePlayers().size() ; i++){
-		std::ostringstream oss3;
-		oss3<<inGamePlayers[0]->second.color;
-		m+=",\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"";
-	}
-
-	m+="]}}";
-
-	for(unsigned short i = 0 ; i < game->getInGamePlayers().size() ; i++){
-		inGamePlayers[i]->first->getCon()->send(m);
-	}
-	delete inGamePlayers;
-
-
 }
 
 void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
@@ -393,7 +329,7 @@ void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
 						this->removeGame(g->getID());
 					break;
 					}else{
-						this->notifyExitingRoom(playerID,g);
+						g->notifyExitingRoom(playerID);
 					}
 				}
 			}else{
@@ -408,7 +344,7 @@ void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
 						this->removeGame(g->getID());
 					break;
 					}else{
-						this->notifyExitingRoom(playerID,g);
+						g->notifyExitingRoom(playerID);
 					}
 				}
 			}
@@ -481,6 +417,9 @@ std::string WSServer::getOutGameData(){
 	return response;
 }
 
+void tickInGame(WSServer* srv){
+	srv->tickInGame();
+}
 
 int main(int argc, char* argv[]) {
 	try{
@@ -520,7 +459,7 @@ int main(int argc, char* argv[]) {
 			/* 1 thread pour le rafraichissement en jeu */
 			threads.push_back(
 				boost::shared_ptr<boost::thread>(
-					new boost::thread(boost::bind(&tickInGame))
+					new boost::thread(boost::bind(tickInGame,&srv))
 				)
 			);
 		}

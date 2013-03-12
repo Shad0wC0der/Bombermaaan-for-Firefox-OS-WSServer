@@ -15,7 +15,8 @@
 #include "ChatBox.h"
 
 void process(RequestCoordinator*);
-void tickInGame();
+void tickInGame(WSServer* srv);
+
 class WSServer : public websocketpp::server::handler {
 public:
 	static const int				IN_GAME_TICK = 80;
@@ -41,6 +42,8 @@ public:
 	void							startGame(const unsigned short&,const websocketpp::server::connection_ptr&);
 	void							stopGame(const unsigned short&);
 	void							chooseColor(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
+	void							tickInGame();
+
 
 private:
 	std::list<Player*>				outGamePlayers;
@@ -65,14 +68,9 @@ private:
 	void notifyPlayerExited(const std::string&);
 	void notifyGameDeleted(const std::string&);
 	void notifyError(const std::string&,const connection_ptr&);
-	void notifyEnteringRoom(Player*,Game*);
-	void notifyExitingRoom(const std::string&,Game*);
 	void notifyGameRemoved(const std::string&);
 	void sendGameMapList(const connection_ptr&);
 	void sendGameMapData(const connection_ptr&, const unsigned short&);
-	void notifyGameStarted(Game*);
-	void notifyGameFinished(Game*);
-	void notifyColorChanged(Game*);
 };
 
 #endif /* WSSERVER_H_ */

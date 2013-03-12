@@ -37,7 +37,15 @@ public:
 					   SELECT_SERVER_MAP,
 					   CHOOSE_COLOR,
 					   NOTIFY_GAME_STARTED,
-					   NOTIFY_GAME_FINISHED
+					   NOTIFY_GAME_FINISHED,
+					   /* in-game requests */
+					   MOVE,
+					   DROP_BOMB,
+					   NOTIFY_MOVE,
+					   NOTIFY_BOMB_DROPED,
+					   NOTIFY_BOMB_EXPLODED,
+					   NOTIFY_PLAYER_KILLED,
+					   NOTIFY_BLOCK_DESTROYED
 					  };
 
 	RequestFactory(WSServer* server);

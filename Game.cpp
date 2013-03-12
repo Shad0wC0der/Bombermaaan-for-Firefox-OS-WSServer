@@ -4,29 +4,35 @@
  *  Created on: 9 déc. 2012
  *      Author: robin
  */
-
+#include <cmath>
+#include <stdlib.h>
+#include <time.h>
 #include "Game.h"
 
-const unsigned short Game::NB_COLORS = 3;
+const unsigned short Game::NB_COLORS = 4;
 
-Game::Game(/*std::string name,*/Player* host,const unsigned short& id) {
+Game::Game(/*std::string name,*/Player* host,const unsigned short& id,WSServer* server) {
 	this->id = id;
 	//this->name=name;
 	this->host=host;
 	this->addPlayer(host);
+	this->map.setSMap(Map::maps[0]);
+	this->server=server;
+	this->inGamePlayers=new std::pair<Player*,InGamePlayerData>[MAX_PLAYER];
+	this->nbPlayers=1;
 }
 
 bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con){
 	bool hostExited=false;
-	for (std::map<Player*,InGamePlayerData>::iterator it = inGamePlayers.begin(); it!=inGamePlayers.end();){
-		if(it->first->getCon() == con){
-			if(this->host == it->first)hostExited=true;
-			delete it->first;
-			inGamePlayers.erase(it);
-			if(hostExited && !inGamePlayers.empty())
-				host=inGamePlayers.begin()->first;
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(inGamePlayers[i].first->getCon() == con){
+			if(this->host == inGamePlayers[i].first)hostExited=true;
+			delete inGamePlayers[i].first;
+			this->nbPlayers--;
+			if(hostExited && !this->nbPlayers==0)
+				host=inGamePlayers[0].first;
 			return true;
-		}else ++it;
+		}
 	}
 	return false;
 }
@@ -36,21 +42,25 @@ Game::~Game() {
 }
 
 bool Game::addPlayer(Player* player){
-	if(this->inGamePlayers.size()<MAX_PLAYER){
+	if(this->nbPlayers<MAX_PLAYER){
 		InGamePlayerData inGamePlayerData;
 		inGamePlayerData.color=NONE;
-		this->inGamePlayers.insert(std::pair<Player*,InGamePlayerData>(player,inGamePlayerData));
+		inGamePlayerData.speed=20;
+		inGamePlayerData.radius=2;
+		inGamePlayerData.maxBomb=1;
+		inGamePlayerData.bombUsed=0;
+		this->inGamePlayers[this->nbPlayers++]=std::pair<Player*,InGamePlayerData>(player,inGamePlayerData);
 		return true;
 	}
 	return false;
 }
 
-bool Game::isColorAvalaible(PLAYER_COLOR color){
-	if(color < NB_COLORS)
+bool Game::isColorAvalaible(const unsigned short& color){
+	if(color > NB_COLORS)
 		return false;
 
-	for (std::pair<Player*,InGamePlayerData> p : this->getInGamePlayers()){
-		if(p.second.color == color)
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(inGamePlayers[i].second.color == color)
 			return false;
 	}
 
@@ -58,23 +68,270 @@ bool Game::isColorAvalaible(PLAYER_COLOR color){
 }
 
 bool Game::isInGame(const websocketpp::server::connection_ptr& con){
-	for (std::pair<Player*,InGamePlayerData> p : this->getInGamePlayers()){
-		if(p.first->getCon()==con)
-			return true;
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(inGamePlayers[i].first->getCon()==con)
+		return true;
 	}
-
 	return false;
 }
 
-Game::PLAYER_COLOR Game::getColor(const unsigned short& color){
+PLAYER_COLOR Game::getColor(const unsigned short& color){
 	switch(color){
 	case 1:
-		return PLAYER_COLOR::YELLOW;break;
+		return PLAYER_COLOR::WHITE;break;
 	case 2:
+		return PLAYER_COLOR::BLACK;break;
+	case 3:
 		return PLAYER_COLOR::RED;break;
+	case 4:
+		return PLAYER_COLOR::BLUE;break;
 	default:
 		return PLAYER_COLOR::NONE;break;
 	}
 }
 
+void Game::startGame(){
+	//map
+	if (this->map.getBlocks() == 0)
+		this->map.setSMap(Map::maps[0]);
 
+	//initialisation players
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].second.position.x=this->map.getPlayerPosition(i).x;
+		inGamePlayers[i].second.position.y=this->map.getPlayerPosition(i).y;
+	}
+
+	//initialisation aleatoire des blocs
+	this->blocks=new bool*[this->map.getWidth()];
+	for(int i=0;i<this->map.getWidth();i++)this->blocks[i]=new bool[this->map.getHeight()];
+
+	for(int y = 0 ; y < this->map.getWidth() ; y++) {
+		for(int x = 0 ; x < this->map.getHeight() ; x++) {
+			if (this->map.getBlocks()[y][x] == 2) {
+				bool free=true;	
+				for(int i = 0 ; i < this->nbPlayers ; i++){
+					if (!(fabs((double)(inGamePlayers[i].second.position.x-x)) > 1 || fabs((double)(inGamePlayers[i].second.position.y-y)) > 1)){
+						free=false;
+						break;
+					}
+				}
+				
+				if (free) {					
+					if (floor (rand() % 10 + 1) > 1) {
+						this->blocks[x][y]=true;
+					}else{
+						this->blocks[x][y]=false;
+					}
+				}	 
+			}
+		}
+	}
+
+	//intialisation des obstructions par blocs
+	this->bombObstructions=new bool*[this->map.getWidth()];
+	for(int i=0;i<this->map.getWidth();i++)this->bombObstructions[i]=new bool[this->map.getHeight()];
+	for(int i = 0 ; i < this->map.getWidth() ; i++){
+		for(int y = 0 ; y < this->map.getHeight() ; y++){
+			((bool*)bombObstructions[i])[y]=false;
+		}
+	}
+
+	//initialisation des MOVE de chaque joueurs
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		this->moves[i].timer=255;
+		this->moves[i].endTime=255;
+	}
+
+	//initialisation deflagrations 
+	this->deflagrations=new unsigned short*[this->map.getWidth()];
+	for(int i=0;i<this->map.getWidth();i++)this->deflagrations[i]=new unsigned short[this->map.getHeight()];
+	for(int i = 0 ; i < this->map.getWidth() ; i++){
+		for(int y = 0 ; y < this->map.getHeight() ; y++){
+			((unsigned short*)deflagrations[i])[y]=0;
+		}
+	}
+
+	this->notifyGameStarted();
+}
+
+void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con){
+	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
+	if(inGamePlayers[iPlayer].first->getCon() != con) return;
+	if(!(inGamePlayers[iPlayer].second.bombUsed<inGamePlayers[iPlayer].second.maxBomb)) return;
+
+	Bomb b;
+	b.radius=inGamePlayers[iPlayer].second.radius;
+	b.endTime=BOMB_TIMER;
+	b.timer=0;
+	b.position.x=inGamePlayers[iPlayer].second.position.x;
+	b.position.y=inGamePlayers[iPlayer].second.position.y;
+	inGamePlayers[iPlayer].second.bombUsed++;
+
+	this->bombs.push_back(b);
+}
+
+void Game::move(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con,const unsigned short& direction){
+	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
+	if(inGamePlayers[iPlayer].first->getCon() != con) return ;
+	if(moves[iPlayer].timer<moves[iPlayer].endTime) return;
+
+	switch(direction){
+		case DIRECTION::UP:
+			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x,inGamePlayers[iPlayer].second.position.y-1))return;
+			moves[iPlayer].direction=DIRECTION::UP;
+			break;
+		case DIRECTION::RIGHT:
+			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x+1,inGamePlayers[iPlayer].second.position.y))return;
+			moves[iPlayer].direction=DIRECTION::RIGHT;
+			break;
+		case DIRECTION::DOWN:
+			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x,inGamePlayers[iPlayer].second.position.y+1))return;
+			moves[iPlayer].direction=DIRECTION::DOWN;
+			break;
+		case DIRECTION::LEFT:
+			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x-1,inGamePlayers[iPlayer].second.position.y))return;
+			moves[iPlayer].direction=DIRECTION::LEFT;
+			break;
+		default:
+			return;
+	}
+
+	moves[iPlayer].endTime=inGamePlayers[iPlayer].second.speed;
+	moves[iPlayer].timer=0;
+	moves[iPlayer].tChangePosition=(moves[iPlayer].endTime/2);
+}
+
+Player* Game::getPlayer(const unsigned short& iPlayer){
+	if(iPlayer<0 || !(iPlayer<this->nbPlayers))return (Player*)0;
+	return this->inGamePlayers[iPlayer].first;
+}
+
+void Game::changePlayerColor(const websocketpp::server::connection_ptr& con,const unsigned short& color){
+	if(!isColorAvalaible(color))return;
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(inGamePlayers[i].first->getCon() == con){
+			inGamePlayers[i].second.color=(PLAYER_COLOR)color;
+		}
+	}
+}
+
+void Game::notifyEnteringRoom(Player* player){
+	std::ostringstream oss;
+	oss<<getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ENTERING_ROOM))+"\",\"value\":{\"name\":\""+player->getName()+"\",\"id\":\""+player->getID()+"\",\"gameID\":\""+oss.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyExitingRoom(const std::string& playerID){
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_EXITING_ROOM))+"\",\"value\":{\"playerID\":\""+playerID+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+
+void Game::notifyGameStarted(){
+	std::ostringstream oss;
+	oss<<getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_STARTED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyGameFinished(){
+	std::ostringstream oss;
+	oss<<getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_FINISHED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyColorChanged(){
+	if(this->nbPlayers == 0) return;
+
+	std::ostringstream oss1;
+	oss1<<getID();
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_COLOR_CHANGED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"colors\":[";
+	
+	std::ostringstream oss2;
+	oss2<<inGamePlayers[0].second.color;
+	m+="\"playerID\":\""+inGamePlayers[0].first->getID()+"\",\"color\":\""+oss2.str()+"\"";
+
+	for(unsigned short i = 1 ; i < this->nbPlayers ; i++){
+		std::ostringstream oss3;
+		oss3<<inGamePlayers[0].second.color;
+		m+=",\"playerID\":\""+inGamePlayers[i].first->getID()+"\",\"color\":\""+oss3.str()+"\"";
+	}
+
+	m+="]}}";
+
+	for(unsigned short i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+	delete inGamePlayers;
+}
+
+void Game::notifyMove(const unsigned short& iPlayer,const Move& move){
+	std::ostringstream oss1,oss2,oss3;
+	oss1<<getID();
+	oss2<<iPlayer;
+	oss3<<move.direction;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MOVE))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"direction\":\""+oss3.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyBombDropped(const unsigned short& iPlayer,const Bomb& bomb){
+	std::ostringstream oss1,oss2,oss3,oss4,oss5;
+	oss1<<getID();
+	oss2<<iPlayer;
+	oss3<<bomb.position.x;
+	oss4<<bomb.position.y;
+	oss5<<bomb.radius;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_DROPPED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"x\":\""+oss3.str()+"\",\"y\":\""+oss4.str()+"\",\"radius\":\""+oss5.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::perform(){
+	//mouvements
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(moves[i].timer<moves[i].endTime){
+			moves[i].timer++;
+			if(moves[i].timer == moves[i].tChangePosition){
+				switch(moves[i].direction){
+				case DIRECTION::UP:
+					inGamePlayers[i].second.position.y--;
+					break;
+				case DIRECTION::RIGHT:
+					inGamePlayers[i].second.position.x++;
+					break;
+				case DIRECTION::DOWN:
+					inGamePlayers[i].second.position.y++;
+					break;
+				case DIRECTION::LEFT:
+					inGamePlayers[i].second.position.x--;
+					break;
+				default:
+					return;
+				}
+			}
+		}
+	}
+
+	//bombes
+
+	//deflagrations
+}
+
+bool Game::isObstructed(const unsigned short& x,const unsigned short& y){
+	return (!this->map.couldBeAPath(x,y)
+			|| this->blocks[x][y]
+			|| this->bombObstructions[x][y]);
+}

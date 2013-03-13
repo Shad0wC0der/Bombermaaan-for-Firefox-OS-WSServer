@@ -5,8 +5,8 @@
  *      Author: robin
  */
 #include <cmath>
-#include <stdlib.h>
-#include <time.h>
+#include <cstdlib>
+#include <ctime>
 #include "Game.h"
 #include "WSServer.h"
 

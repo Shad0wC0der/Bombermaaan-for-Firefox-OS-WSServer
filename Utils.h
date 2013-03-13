@@ -12,7 +12,7 @@
 #include <string>
 
 
-static int split(std::list<std::string>& vecteur, std::string chaine, char separateur)
+int split(std::list<std::string>& vecteur, std::string chaine, char separateur)
 {
 	vecteur.clear();
 

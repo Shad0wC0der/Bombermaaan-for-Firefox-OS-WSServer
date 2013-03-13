@@ -25,7 +25,7 @@ WSServer::~WSServer() {
 		if(games_ptr[i]!=((Game*)NULL))
 			delete games_ptr[i];
 	}
-	delete this->games_ptr;
+	delete [] this->games_ptr;
 }
 
 void WSServer::removeGame(const unsigned short& gameID){

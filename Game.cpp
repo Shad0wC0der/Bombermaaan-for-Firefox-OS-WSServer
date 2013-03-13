@@ -64,7 +64,7 @@ bool Game::addPlayer(Player* player){
 	return false;
 }
 
-bool Game::isColorAvalaible(const unsigned short& color){
+bool Game::isColorAvalaible(const unsigned short& color)const{
 	if(color > NB_COLORS)
 		return false;
 
@@ -76,7 +76,7 @@ bool Game::isColorAvalaible(const unsigned short& color){
 	return true;
 }
 
-bool Game::isInGame(const websocketpp::server::connection_ptr& con){
+bool Game::isInGame(const websocketpp::server::connection_ptr& con)const{
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		if(inGamePlayers[i].first->getCon()==con)
 		return true;
@@ -84,7 +84,7 @@ bool Game::isInGame(const websocketpp::server::connection_ptr& con){
 	return false;
 }
 
-PLAYER_COLOR Game::getColor(const unsigned short& color){
+PLAYER_COLOR Game::getColor(const unsigned short& color)const{
 	switch(color){
 	case 1:
 		return PLAYER_COLOR::WHITE;break;
@@ -228,7 +228,7 @@ void Game::move(const unsigned short& iPlayer,const websocketpp::server::connect
 	this->notifyMove(iPlayer,moves[iPlayer]);
 }
 
-Player* Game::getPlayer(const unsigned short& iPlayer){
+Player* Game::getPlayer(const unsigned short& iPlayer)const{
 	if(iPlayer<0 || !(iPlayer<this->nbPlayers))return (Player*)0;
 	return this->inGamePlayers[iPlayer].first;
 }
@@ -299,7 +299,6 @@ void Game::notifyColorChanged(){
 	for(unsigned short i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i].first->getCon()->send(m);
 	}
-	delete inGamePlayers;
 }
 
 void Game::notifyMove(const unsigned short& iPlayer,const Move& move){
@@ -694,11 +693,11 @@ void Game::checkBonusAcquisition(const unsigned short& iPlayer){
 	}
 }
 
-bool Game::checkDeath(const unsigned short& iPlayer){
+bool Game::checkDeath(const unsigned short& iPlayer)const{
 	return (deflagrations[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] > 0);
 }
 
-bool Game::isGameFinished(){
+bool Game::isGameFinished()const{
 	int cpt = 0 ; 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		if(inGamePlayers[i].second.alive)

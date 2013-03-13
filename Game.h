@@ -82,20 +82,20 @@ public:
 		unsigned short bombUsed;
 		unsigned short maxBomb;
 	};
-	unsigned short getNbPlayers(){return this->nbPlayers;}
-	Player* getPlayer(const unsigned short&);
+	unsigned short getNbPlayers()const{return this->nbPlayers;}
+	Player* getPlayer(const unsigned short&)const;
 	Map* getMap(){return &map;}
-	bool isColorAvalaible(const unsigned short&);
-	bool isInGame(const websocketpp::server::connection_ptr&);
-	PLAYER_COLOR getColor(const unsigned short&);
+	bool isColorAvalaible(const unsigned short&)const;
+	bool isInGame(const websocketpp::server::connection_ptr&)const;
+	PLAYER_COLOR getColor(const unsigned short&)const;
 	void startGame();
 	void stopGame();
 	void dropBomb(const unsigned short&,const websocketpp::server::connection_ptr&);
 	void move(const unsigned short&,const websocketpp::server::connection_ptr&,const unsigned short&);
 	void changePlayerColor(const websocketpp::server::connection_ptr&,const unsigned short&);
 	void checkBonusAcquisition(const unsigned short&);
-	bool checkDeath(const unsigned short&);
-	bool isGameFinished();
+	bool checkDeath(const unsigned short&)const;
+	bool isGameFinished()const;
 	void perform();
 
 	void notifyEnteringRoom(Player* player);

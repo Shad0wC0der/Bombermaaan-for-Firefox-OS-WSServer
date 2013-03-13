@@ -6,6 +6,8 @@
  */
 
 #include "Map.h"
+#include "Utils.h"
+
 
 /**
 ** Deux premieres composantes = width & height
@@ -41,21 +43,20 @@ std::string Map::getCurrentSMap()const{
 
 void Map::setSMap(const std::string& smap){
 	for(int i = 0 ; i < this->width ; i++){
-		for(int y = 0 ; y < this->height ; y++){
-			delete &((unsigned short*)map[i])[y];
-		}
+		delete [] map[i];
+		delete [] map;
 	}
+
 	this->smap=smap;
 	this->init();
 	if(this->playersPositions!=0)
-		delete this->playersPositions;
-
+		delete [] this->playersPositions;
 }
 
 void Map::init(){
 	try{
 		std::list<std::string> vec;
-		split(vec,smap,',');
+		Utils::split(vec,smap,',');
 		if((this->width=atoi(vec.front().c_str()))==0)throw 1;vec.pop_front();
 		if((this->height=atoi(vec.front().c_str()))==0)throw 1;vec.pop_front();
 		if((this->nbPlayers=atoi(vec.front().c_str()))==0)throw 1;vec.pop_front();
@@ -83,9 +84,8 @@ void Map::init(){
 
 Map::~Map() {
 	for(int i = 0 ; i < this->width ; i++){
-		for(int y = 0 ; y < this->height ; y++){
-			delete &((unsigned short*)map[i])[y];
-		}
+		delete [] map[i];
+		delete [] map;
 	}
 }
 

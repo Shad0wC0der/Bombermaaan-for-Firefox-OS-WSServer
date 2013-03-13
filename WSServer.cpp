@@ -94,7 +94,7 @@ void process(RequestCoordinator* coordinator){
 
 void WSServer::tickInGame(){
 	while(1){
-		boost::this_thread::sleep(boost::posix_time::seconds(WSServer::IN_GAME_TICK));
+		boost::this_thread::sleep(boost::posix_time::milliseconds(WSServer::IN_GAME_TICK));
 		for(Game* game : this->runningGames){
 			boost::unique_lock<boost::mutex> l(*this->gameLockers[game->getID()]);
 			game->perform();

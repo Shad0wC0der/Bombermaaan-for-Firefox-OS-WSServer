@@ -23,13 +23,14 @@ enum DIRECTION {
 				};
 
 enum ITEM_TYPE {
+				ITEM_NONE,
 				BOOT,
 				POWER,
 				BOMB
 				};
 
 enum PLAYER_COLOR{
-				NONE,
+				COLOR_NONE,
 				WHITE,
 				BLACK,
 				BLUE,
@@ -48,6 +49,10 @@ struct Bomb{
 	unsigned short int timer;
 	unsigned short int endTime;
 	Position position;
+	bool operator==(Bomb const& b)
+	{
+		return (this->position.x==b.position.x && this->position.y==b.position.y);
+	}
 };
 
 struct Item{
@@ -69,6 +74,7 @@ public:
 	unsigned short getID()const{return this->id;}
 	Player* getHost(){return this->host;}
 	struct InGamePlayerData{
+		bool alive;
 		PLAYER_COLOR color;
 		Position position;
 		unsigned short speed;
@@ -83,9 +89,13 @@ public:
 	bool isInGame(const websocketpp::server::connection_ptr&);
 	PLAYER_COLOR getColor(const unsigned short&);
 	void startGame();
+	void stopGame();
 	void dropBomb(const unsigned short&,const websocketpp::server::connection_ptr&);
 	void move(const unsigned short&,const websocketpp::server::connection_ptr&,const unsigned short&);
 	void changePlayerColor(const websocketpp::server::connection_ptr&,const unsigned short&);
+	void checkBonusAcquisition(const unsigned short&);
+	bool checkDeath(const unsigned short&);
+	bool isGameFinished();
 	void perform();
 
 	void notifyEnteringRoom(Player* player);
@@ -95,6 +105,13 @@ public:
 	void notifyColorChanged();
 	void notifyMove(const unsigned short&,const Move&);
 	void notifyBombDropped(const unsigned short&,const Bomb&);
+	void notifyBlockDestroyed(const Position&);
+	void notifyBombExploded(const Position&);
+	void notifyItemAppeared(const unsigned short&, const Position&);
+	void notifyBonusAcquired(const unsigned short&, const unsigned short&);
+	void notifyItemPickedup(const Position&);
+	void notifyItemDestroyed(const Position&);
+	void notifyPlayerKilled(const unsigned short&);
 
 private:
 	unsigned short						id;
@@ -106,12 +123,13 @@ private:
 	Map									map;
 	Move								moves[MAX_PLAYER];
 	std::list<Bomb>						bombs;
-	std::list<Item>						items;
+	unsigned short int**				items;
 	bool**								blocks;
 	bool**								bombObstructions;
 	unsigned short int**				deflagrations;
 	WSServer*							server;
 	bool								isObstructed(const unsigned short&,const unsigned short&);
+	void								doDeflagration(const Bomb&);
 
 };
 

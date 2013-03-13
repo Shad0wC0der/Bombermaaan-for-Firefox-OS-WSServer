@@ -45,7 +45,11 @@ public:
 					   NOTIFY_BOMB_DROPED,
 					   NOTIFY_BOMB_EXPLODED,
 					   NOTIFY_PLAYER_KILLED,
-					   NOTIFY_BLOCK_DESTROYED
+					   NOTIFY_BLOCK_DESTROYED,
+					   NOTIFY_ITEM_APPEARED,
+					   NOTIFY_ITEM_DESTROYED,
+					   NOTIFY_ITEM_PICKEDUP,
+					   NOTIFY_BONUS_ACQUIRED
 					  };
 
 	RequestFactory(WSServer* server);

@@ -43,6 +43,8 @@ public:
 	void							stopGame(const unsigned short&);
 	void							chooseColor(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
 	void							tickInGame();
+	void							redirectMoveRequest(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&,const unsigned short&);
+	void							redirectDropBombRequest(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
 
 
 private:

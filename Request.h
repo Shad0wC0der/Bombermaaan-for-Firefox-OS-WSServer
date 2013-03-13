@@ -113,4 +113,24 @@ private:
 	 WSServer* server;
 };
 
+class RequestMove : public Request{
+public:
+	RequestMove(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
+	void process(void);
+	virtual ~RequestMove(){delete parser;}
+private:
+	 JsonParser* parser;
+	 WSServer* server;
+};
+
+class RequestDropBomb : public Request{
+public:
+	RequestDropBomb(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
+	void process(void);
+	virtual ~RequestDropBomb(){delete parser;}
+private:
+	 JsonParser* parser;
+	 WSServer* server;
+};
+
 #endif /* REQUEST_H_ */

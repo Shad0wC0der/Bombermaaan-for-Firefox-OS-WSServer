@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "Game.h"
+#include "WSServer.h"
 
 const unsigned short Game::NB_COLORS = 4;
 
@@ -28,6 +29,13 @@ bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con
 		if(inGamePlayers[i].first->getCon() == con){
 			if(this->host == inGamePlayers[i].first)hostExited=true;
 			delete inGamePlayers[i].first;
+			//reordonancement
+			//si la suppression cause un trou, on decalle
+			if(i<this->nbPlayers-1){
+				for(int p = i ; p < this->nbPlayers-1 ; p++){
+					inGamePlayers[p]=inGamePlayers[p+1];	
+				}
+			}
 			this->nbPlayers--;
 			if(hostExited && !this->nbPlayers==0)
 				host=inGamePlayers[0].first;
@@ -44,11 +52,12 @@ Game::~Game() {
 bool Game::addPlayer(Player* player){
 	if(this->nbPlayers<MAX_PLAYER){
 		InGamePlayerData inGamePlayerData;
-		inGamePlayerData.color=NONE;
+		inGamePlayerData.color=PLAYER_COLOR::COLOR_NONE;
 		inGamePlayerData.speed=20;
 		inGamePlayerData.radius=2;
 		inGamePlayerData.maxBomb=1;
 		inGamePlayerData.bombUsed=0;
+		inGamePlayerData.alive=true;
 		this->inGamePlayers[this->nbPlayers++]=std::pair<Player*,InGamePlayerData>(player,inGamePlayerData);
 		return true;
 	}
@@ -86,7 +95,7 @@ PLAYER_COLOR Game::getColor(const unsigned short& color){
 	case 4:
 		return PLAYER_COLOR::BLUE;break;
 	default:
-		return PLAYER_COLOR::NONE;break;
+		return PLAYER_COLOR::COLOR_NONE;break;
 	}
 }
 
@@ -136,6 +145,15 @@ void Game::startGame(){
 		}
 	}
 
+	//intialisation de la couche item
+	this->items=new unsigned short*[this->map.getWidth()];
+	for(int i=0;i<this->map.getWidth();i++)this->items[i]=new unsigned short[this->map.getHeight()];
+	for(int i = 0 ; i < this->map.getWidth() ; i++){
+		for(int y = 0 ; y < this->map.getHeight() ; y++){
+			((unsigned short*)items[i])[y]=0;
+		}
+	}
+
 	//initialisation des MOVE de chaque joueurs
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		this->moves[i].timer=255;
@@ -154,10 +172,16 @@ void Game::startGame(){
 	this->notifyGameStarted();
 }
 
+void Game::stopGame(){
+	this->server->stopGame(this->id);
+}
+
 void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con){
 	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
 	if(inGamePlayers[iPlayer].first->getCon() != con) return;
 	if(!(inGamePlayers[iPlayer].second.bombUsed<inGamePlayers[iPlayer].second.maxBomb)) return;
+	if(!inGamePlayers[iPlayer].second.alive) return;
+	if(this->bombObstructions[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y])return;
 
 	Bomb b;
 	b.radius=inGamePlayers[iPlayer].second.radius;
@@ -168,12 +192,14 @@ void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::con
 	inGamePlayers[iPlayer].second.bombUsed++;
 
 	this->bombs.push_back(b);
+	this->notifyBombDropped(iPlayer,b);
 }
 
 void Game::move(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con,const unsigned short& direction){
 	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
 	if(inGamePlayers[iPlayer].first->getCon() != con) return ;
 	if(moves[iPlayer].timer<moves[iPlayer].endTime) return;
+	if(!inGamePlayers[iPlayer].second.alive) return;
 
 	switch(direction){
 		case DIRECTION::UP:
@@ -199,6 +225,7 @@ void Game::move(const unsigned short& iPlayer,const websocketpp::server::connect
 	moves[iPlayer].endTime=inGamePlayers[iPlayer].second.speed;
 	moves[iPlayer].timer=0;
 	moves[iPlayer].tChangePosition=(moves[iPlayer].endTime/2);
+	this->notifyMove(iPlayer,moves[iPlayer]);
 }
 
 Player* Game::getPlayer(const unsigned short& iPlayer){
@@ -299,7 +326,83 @@ void Game::notifyBombDropped(const unsigned short& iPlayer,const Bomb& bomb){
 	}
 }
 
+void Game::notifyBlockDestroyed(const Position& position){
+	std::ostringstream oss1,oss2;
+	oss1<<position.x;
+	oss2<<position.y;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BLOCK_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyBombExploded(const Position& position){
+	std::ostringstream oss1,oss2;
+	oss1<<position.x;
+	oss2<<position.y;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_EXPLODED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyItemAppeared(const unsigned short& itemType, const Position& position){
+	std::ostringstream oss1,oss2,oss3;
+	oss1<<itemType;
+	oss2<<position.x;
+	oss3<<position.y;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_APPEARED))+"\",\"value\":{\"itemType\":\""+oss1.str()+"\",\"x\":\""+oss2.str()+"\",\"y\":\""+oss3.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyBonusAcquired(const unsigned short& iPlayer, const unsigned short& itemType){
+	std::ostringstream oss1,oss2;
+	oss1<<iPlayer;
+	oss2<<itemType;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BONUS_ACQUIRED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\",\"itemType\":\""+oss2.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyItemPickedup(const Position& position){
+	std::ostringstream oss1,oss2;
+	oss1<<position.x;
+	oss2<<position.y;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_PICKEDUP))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyItemDestroyed(const Position& position){
+	std::ostringstream oss1,oss2;
+	oss1<<position.x;
+	oss2<<position.y;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
+void Game::notifyPlayerKilled(const unsigned short& iPlayer){
+	std::ostringstream oss1;
+	oss1<<iPlayer;
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_KILLED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\"}}";
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i].first->getCon()->send(m);
+	}
+}
+
 void Game::perform(){
+	//verification fin de partie
+	if(this->isGameFinished()){
+		this->notifyGameFinished();
+		this->stopGame();
+	}
+
 	//mouvements
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		if(moves[i].timer<moves[i].endTime){
@@ -321,17 +424,286 @@ void Game::perform(){
 				default:
 					return;
 				}
+				//verification acquisition bonus
+				this->checkBonusAcquisition(i);
+			}
+
+			//verification mort du personnage
+			if(checkDeath(i)){
+				inGamePlayers[i].second.alive=false;
+				this->notifyPlayerKilled(i);
 			}
 		}
 	}
 
 	//bombes
+	for(Bomb b : this->bombs){
+		if(b.timer==b.endTime){
+			//deflagration
+			this->doDeflagration(b);
+		}else{
+			b.timer++;
+		}
+	}
 
 	//deflagrations
+	for(int x = 0 ; x < this->map.getWidth() ; x++){
+		for(int y = 0 ; y < this->map.getHeight() ; y++){
+			if(this->deflagrations[x][y]>0){
+				this->deflagrations[x][y]--;
+			}
+		}
+	}
+
 }
 
 bool Game::isObstructed(const unsigned short& x,const unsigned short& y){
 	return (!this->map.couldBeAPath(x,y)
 			|| this->blocks[x][y]
 			|| this->bombObstructions[x][y]);
+}
+
+void Game::doDeflagration(const Bomb& bomb){
+	//suppression de la bombe
+	this->bombs.remove(bomb);
+	
+	//notification d'explosion
+	this->notifyBombExploded(bomb.position);
+
+	//centre
+	this->bombObstructions[bomb.position.x][bomb.position.y]=false;
+	this->deflagrations[bomb.position.x][bomb.position.y]=DEFLAGRATION_TIMER;
+			
+	//haut
+	for(int i = 1 ; i < bomb.radius ; i++){
+		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y - i)){
+			//atteint une autre bombe
+			if(this->bombObstructions[bomb.position.x][bomb.position.y - i]){
+				for(Bomb b : bombs){
+					if(b.position.x == bomb.position.x && b.position.y == bomb.position.y - i){
+						this->doDeflagration(b);
+						break;
+					}
+				}
+			//atteint un bloc destructible
+			}else if (this->blocks[bomb.position.x][bomb.position.y - i]){
+				this->blocks[bomb.position.x][bomb.position.y - i]=false;
+				Position p;
+				p.x=bomb.position.x;
+				p.y=bomb.position.y - i;
+				this->notifyBlockDestroyed(p);
+				int r = floor (rand() % 10 + 1);
+				switch(r){
+					case 0:
+					case 1:
+					case 2:
+						this->items[bomb.position.x][bomb.position.y - i] = ITEM_TYPE::BOOT;
+						this->notifyItemAppeared(ITEM_TYPE::BOOT,p);
+						break;
+					case 3:
+					case 4:
+						this->items[bomb.position.x][bomb.position.y - i] = ITEM_TYPE::BOMB;
+						this->notifyItemAppeared(ITEM_TYPE::BOMB,p);
+						break;
+					case 5:
+						this->items[bomb.position.x][bomb.position.y - i] = ITEM_TYPE::POWER;
+						this->notifyItemAppeared(ITEM_TYPE::POWER,p);
+						break;
+				}
+				break;
+			//atteint un item
+			}else if (this->items[bomb.position.x][bomb.position.y - i] != ITEM_TYPE::ITEM_NONE){
+				//item détruis
+				this->items[bomb.position.x][bomb.position.y - i] = ITEM_TYPE::ITEM_NONE;
+				Position p;
+				p.x=bomb.position.x;
+				p.y=bomb.position.y - i;
+				this->notifyItemDestroyed(p);
+			}
+			this->deflagrations[bomb.position.x][bomb.position.y - i]=DEFLAGRATION_TIMER;
+		}
+	}
+
+	//droite
+	for(int i = 1 ; i < bomb.radius ; i++){
+		if(this->map.couldBeAPath(bomb.position.x + i,bomb.position.y)){
+			//atteint une autre bombe
+			if(this->bombObstructions[bomb.position.x + i][bomb.position.y]){
+				for(Bomb b : bombs){
+					if(b.position.x == bomb.position.x + i && b.position.y == bomb.position.y){
+						this->doDeflagration(b);
+						break;
+					}
+				}
+			//atteint un bloc destructible
+			}else if (this->blocks[bomb.position.x + i][bomb.position.y]){
+				this->blocks[bomb.position.x + i][bomb.position.y]=false;
+				Position p;
+				p.x=bomb.position.x + i;
+				p.y=bomb.position.y;
+				this->notifyBlockDestroyed(p);
+				int r = floor (rand() % 10 + 1);
+				switch(r){
+					case 0:
+					case 1:
+					case 2:
+						this->items[bomb.position.x + i][bomb.position.y] = ITEM_TYPE::BOOT;
+						this->notifyItemAppeared(ITEM_TYPE::BOOT,p);
+						break;
+					case 3:
+					case 4:
+						this->items[bomb.position.x + i][bomb.position.y] = ITEM_TYPE::BOMB;
+						this->notifyItemAppeared(ITEM_TYPE::BOMB,p);
+						break;
+					case 5:
+						this->items[bomb.position.x + i][bomb.position.y] = ITEM_TYPE::POWER;
+						this->notifyItemAppeared(ITEM_TYPE::POWER,p);
+						break;
+				}
+				break;
+			//atteint un item
+			}else if (this->items[bomb.position.x + i][bomb.position.y] != ITEM_TYPE::ITEM_NONE){
+				//item détruis
+				this->items[bomb.position.x + i][bomb.position.y] = ITEM_TYPE::ITEM_NONE;
+				Position p;
+				p.x=bomb.position.x + i;
+				p.y=bomb.position.y;
+				this->notifyItemDestroyed(p);
+			}
+			this->deflagrations[bomb.position.x + 1][bomb.position.y]=DEFLAGRATION_TIMER;
+		}
+	}
+	//bas
+	for(int i = 1 ; i < bomb.radius ; i++){
+		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y + i)){
+			//atteint une autre bombe
+			if(this->bombObstructions[bomb.position.x][bomb.position.y + i]){
+				for(Bomb b : bombs){
+					if(b.position.x == bomb.position.x && b.position.y == bomb.position.y + i){
+						this->doDeflagration(b);
+						break;
+					}
+				}
+			//atteint un bloc destructible
+			}else if (this->blocks[bomb.position.x][bomb.position.y + i]){
+				this->blocks[bomb.position.x][bomb.position.y + i]=false;
+				Position p;
+				p.x=bomb.position.x;
+				p.y=bomb.position.y + i;
+				this->notifyBlockDestroyed(p);
+				int r = floor (rand() % 10 + 1);
+				switch(r){
+					case 0:
+					case 1:
+					case 2:
+						this->items[bomb.position.x][bomb.position.y + i] = ITEM_TYPE::BOOT;
+						this->notifyItemAppeared(ITEM_TYPE::BOOT,p);
+						break;
+					case 3:
+					case 4:
+						this->items[bomb.position.x][bomb.position.y + i] = ITEM_TYPE::BOMB;
+						this->notifyItemAppeared(ITEM_TYPE::BOMB,p);
+						break;
+					case 5:
+						this->items[bomb.position.x][bomb.position.y + i] = ITEM_TYPE::POWER;
+						this->notifyItemAppeared(ITEM_TYPE::POWER,p);
+						break;
+				}
+				break;
+			//atteint un item
+			}else if (this->items[bomb.position.x][bomb.position.y + i] != ITEM_TYPE::ITEM_NONE){
+				//item détruis
+				this->items[bomb.position.x][bomb.position.y + i] = ITEM_TYPE::ITEM_NONE;
+				Position p;
+				p.x=bomb.position.x;
+				p.y=bomb.position.y + i;
+				this->notifyItemDestroyed(p);
+			}
+			this->deflagrations[bomb.position.x][bomb.position.y + i]=DEFLAGRATION_TIMER;
+		}
+	}
+	//gauche
+	for(int i = 1 ; i < bomb.radius ; i++){
+		if(this->map.couldBeAPath(bomb.position.x - i,bomb.position.y)){
+			//atteint une autre bombe
+			if(this->bombObstructions[bomb.position.x - i][bomb.position.y]){
+				for(Bomb b : bombs){
+					if(b.position.x == bomb.position.x - i && b.position.y == bomb.position.y){
+						this->doDeflagration(b);
+						break;
+					}
+				}
+			//atteint un bloc destructible
+			}else if (this->blocks[bomb.position.x - i][bomb.position.y]){
+				this->blocks[bomb.position.x - i][bomb.position.y]=false;
+				Position p;
+				p.x=bomb.position.x - i;
+				p.y=bomb.position.y;
+				this->notifyBlockDestroyed(p);
+				int r = floor (rand() % 10 + 1);
+				switch(r){
+					case 0:
+					case 1:
+					case 2:
+						this->items[bomb.position.x - i][bomb.position.y] = ITEM_TYPE::BOOT;
+						this->notifyItemAppeared(ITEM_TYPE::BOOT,p);
+						break;
+					case 3:
+					case 4:
+						this->items[bomb.position.x - i][bomb.position.y] = ITEM_TYPE::BOMB;
+						this->notifyItemAppeared(ITEM_TYPE::BOMB,p);
+						break;
+					case 5:
+						this->items[bomb.position.x - i][bomb.position.y] = ITEM_TYPE::POWER;
+						this->notifyItemAppeared(ITEM_TYPE::POWER,p);
+						break;
+				}
+				break;
+			//atteint un item
+			}else if (this->items[bomb.position.x - i][bomb.position.y] != ITEM_TYPE::ITEM_NONE){
+				//item détruis
+				this->items[bomb.position.x - i][bomb.position.y] = ITEM_TYPE::ITEM_NONE;
+				Position p;
+				p.x=bomb.position.x - i;
+				p.y=bomb.position.y;
+				this->notifyItemDestroyed(p);
+			}
+			this->deflagrations[bomb.position.x - i][bomb.position.y]=DEFLAGRATION_TIMER;
+		}
+	}
+}
+
+void Game::checkBonusAcquisition(const unsigned short& iPlayer){
+	if(this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] != ITEM_TYPE::ITEM_NONE){
+		switch (this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y])
+		{
+		case ITEM_TYPE::BOOT:
+			if(inGamePlayers[iPlayer].second.speed>8)
+				inGamePlayers[iPlayer].second.speed--;
+			break;
+		case ITEM_TYPE::BOMB:
+			inGamePlayers[iPlayer].second.maxBomb++;
+			break;
+		case ITEM_TYPE::POWER:
+			inGamePlayers[iPlayer].second.radius++;
+			break;
+		}
+		this->notifyBonusAcquired(iPlayer,this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y]);
+		this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] = ITEM_TYPE::ITEM_NONE;
+		this->notifyItemPickedup(inGamePlayers[iPlayer].second.position);
+	}
+}
+
+bool Game::checkDeath(const unsigned short& iPlayer){
+	return (deflagrations[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] > 0);
+}
+
+bool Game::isGameFinished(){
+	int cpt = 0 ; 
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(inGamePlayers[i].second.alive)
+			cpt++;
+	}
+
+	return cpt < 2;
 }

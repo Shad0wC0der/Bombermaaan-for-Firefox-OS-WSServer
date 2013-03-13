@@ -96,9 +96,29 @@ void WSServer::tickInGame(){
 	while(1){
 		boost::this_thread::sleep(boost::posix_time::seconds(WSServer::IN_GAME_TICK));
 		for(Game* game : this->runningGames){
+			boost::unique_lock<boost::mutex> l(*this->gameLockers[game->getID()]);
 			game->perform();
 		}
 	}
+}
+
+void WSServer::redirectMoveRequest(const unsigned short& iGame,const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con,const unsigned short& direction){
+	if(iGame>=WSServer::NB_SIMULTANEOUS_GAMES)return;
+	if(this->games_ptr[iGame] == NULL) return;
+	if(this->gameLockers[iGame] == NULL) return;
+
+
+	boost::unique_lock<boost::mutex> l(*this->gameLockers[iGame]);
+	this->games_ptr[iGame]->move(iPlayer,con,direction);
+}
+
+void WSServer::redirectDropBombRequest(const unsigned short& iGame,const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con){
+	if(iGame>=WSServer::NB_SIMULTANEOUS_GAMES)return;
+	if(this->games_ptr[iGame] == NULL) return;
+	if(this->gameLockers[iGame] == NULL) return;
+
+	boost::unique_lock<boost::mutex> l(*this->gameLockers[iGame]);
+	this->games_ptr[iGame]->dropBomb(iPlayer,con);
 }
 
 std::string WSServer::get_con_id(const websocketpp::server::handler::connection_ptr& con) {

@@ -115,7 +115,7 @@ public:
 
 private:
 	unsigned short						id;
-	std::pair<Player*,InGamePlayerData>*inGamePlayers;
+	std::pair<Player*,InGamePlayerData>**inGamePlayers;
 	unsigned short						nbPlayers;
 	//std::string							name;
 	Player*								host;

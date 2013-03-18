@@ -16,29 +16,34 @@ Game::Game(/*std::string name,*/Player* host,const unsigned short& id,WSServer* 
 	this->id = id;
 	//this->name=name;
 	this->host=host;
-	this->addPlayer(host);
 	this->map.setSMap(Map::maps[0]);
 	this->server=server;
-	this->inGamePlayers=new std::pair<Player*,InGamePlayerData>[MAX_PLAYER];
-	this->nbPlayers=1;
+	this->inGamePlayers=new std::pair<Player*,InGamePlayerData>*[MAX_PLAYER];
+	for(int i = 0 ; i < MAX_PLAYER ; i++){
+		InGamePlayerData pData;
+		this->inGamePlayers[i] = new std::pair<Player*,InGamePlayerData>(NULL,pData);
+	}
+	this->nbPlayers=0;
+	this->addPlayer(host);
 }
 
 bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con){
 	bool hostExited=false;
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i].first->getCon() == con){
-			if(this->host == inGamePlayers[i].first)hostExited=true;
-			delete inGamePlayers[i].first;
+		if(inGamePlayers[i]->first->getCon() == con){
+			if(this->host == inGamePlayers[i]->first)hostExited=true;
+			delete inGamePlayers[i]->first;
 			//reordonancement
 			//si la suppression cause un trou, on decalle
 			if(i<this->nbPlayers-1){
 				for(int p = i ; p < this->nbPlayers-1 ; p++){
-					inGamePlayers[p]=inGamePlayers[p+1];	
+					inGamePlayers[p]->first=inGamePlayers[p+1]->first;
+					inGamePlayers[p]->second=inGamePlayers[p+1]->second;
 				}
 			}
 			this->nbPlayers--;
 			if(hostExited && !this->nbPlayers==0)
-				host=inGamePlayers[0].first;
+				host=inGamePlayers[i]->first;
 			return true;
 		}
 	}
@@ -46,19 +51,21 @@ bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con
 }
 
 Game::~Game() {
-	// TODO Auto-generated destructor stub
+	for(int i = 0 ; i < MAX_PLAYER ; i++){
+		delete this->inGamePlayers[i];
+	}
+	delete [] this->inGamePlayers;
 }
 
 bool Game::addPlayer(Player* player){
 	if(this->nbPlayers<MAX_PLAYER){
-		InGamePlayerData inGamePlayerData;
-		inGamePlayerData.color=PLAYER_COLOR::COLOR_NONE;
-		inGamePlayerData.speed=20;
-		inGamePlayerData.radius=2;
-		inGamePlayerData.maxBomb=1;
-		inGamePlayerData.bombUsed=0;
-		inGamePlayerData.alive=true;
-		this->inGamePlayers[this->nbPlayers++]=std::pair<Player*,InGamePlayerData>(player,inGamePlayerData);
+		this->inGamePlayers[this->nbPlayers]->first=player;
+		this->inGamePlayers[this->nbPlayers]->second.color=PLAYER_COLOR::COLOR_NONE;
+		this->inGamePlayers[this->nbPlayers]->second.speed=20;
+		this->inGamePlayers[this->nbPlayers]->second.radius=2;
+		this->inGamePlayers[this->nbPlayers]->second.maxBomb=1;
+		this->inGamePlayers[this->nbPlayers]->second.bombUsed=0;
+		this->inGamePlayers[this->nbPlayers++]->second.alive=true;
 		return true;
 	}
 	return false;
@@ -69,7 +76,7 @@ bool Game::isColorAvalaible(const unsigned short& color)const{
 		return false;
 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i].second.color == color)
+		if(inGamePlayers[i]->second.color == color)
 			return false;
 	}
 
@@ -78,7 +85,7 @@ bool Game::isColorAvalaible(const unsigned short& color)const{
 
 bool Game::isInGame(const websocketpp::server::connection_ptr& con)const{
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i].first->getCon()==con)
+		if(inGamePlayers[i]->first->getCon()==con)
 		return true;
 	}
 	return false;
@@ -106,8 +113,8 @@ void Game::startGame(){
 
 	//initialisation players
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].second.position.x=this->map.getPlayerPosition(i).x;
-		inGamePlayers[i].second.position.y=this->map.getPlayerPosition(i).y;
+		inGamePlayers[i]->second.position.x=this->map.getPlayerPosition(i).x;
+		inGamePlayers[i]->second.position.y=this->map.getPlayerPosition(i).y;
 	}
 
 	//initialisation aleatoire des blocs
@@ -119,7 +126,7 @@ void Game::startGame(){
 			if (this->map.getBlocks()[y][x] == 2) {
 				bool free=true;	
 				for(int i = 0 ; i < this->nbPlayers ; i++){
-					if (!(fabs((double)(inGamePlayers[i].second.position.x-x)) > 1 || fabs((double)(inGamePlayers[i].second.position.y-y)) > 1)){
+					if (!(fabs((double)(inGamePlayers[i]->second.position.x-x)) > 1 || fabs((double)(inGamePlayers[i]->second.position.y-y)) > 1)){
 						free=false;
 						break;
 					}
@@ -178,18 +185,18 @@ void Game::stopGame(){
 
 void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con){
 	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
-	if(inGamePlayers[iPlayer].first->getCon() != con) return;
-	if(!(inGamePlayers[iPlayer].second.bombUsed<inGamePlayers[iPlayer].second.maxBomb)) return;
-	if(!inGamePlayers[iPlayer].second.alive) return;
-	if(this->bombObstructions[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y])return;
+	if(inGamePlayers[iPlayer]->first->getCon() != con) return;
+	if(!(inGamePlayers[iPlayer]->second.bombUsed<inGamePlayers[iPlayer]->second.maxBomb)) return;
+	if(!inGamePlayers[iPlayer]->second.alive) return;
+	if(this->bombObstructions[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y])return;
 
 	Bomb b;
-	b.radius=inGamePlayers[iPlayer].second.radius;
+	b.radius=inGamePlayers[iPlayer]->second.radius;
 	b.endTime=BOMB_TIMER;
 	b.timer=0;
-	b.position.x=inGamePlayers[iPlayer].second.position.x;
-	b.position.y=inGamePlayers[iPlayer].second.position.y;
-	inGamePlayers[iPlayer].second.bombUsed++;
+	b.position.x=inGamePlayers[iPlayer]->second.position.x;
+	b.position.y=inGamePlayers[iPlayer]->second.position.y;
+	inGamePlayers[iPlayer]->second.bombUsed++;
 
 	this->bombs.push_back(b);
 	this->notifyBombDropped(iPlayer,b);
@@ -197,32 +204,32 @@ void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::con
 
 void Game::move(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con,const unsigned short& direction){
 	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
-	if(inGamePlayers[iPlayer].first->getCon() != con) return ;
+	if(inGamePlayers[iPlayer]->first->getCon() != con) return ;
 	if(moves[iPlayer].timer<moves[iPlayer].endTime) return;
-	if(!inGamePlayers[iPlayer].second.alive) return;
+	if(!inGamePlayers[iPlayer]->second.alive) return;
 
 	switch(direction){
 		case DIRECTION::UP:
-			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x,inGamePlayers[iPlayer].second.position.y-1))return;
+			if(this->isObstructed(inGamePlayers[iPlayer]->second.position.x,inGamePlayers[iPlayer]->second.position.y-1))return;
 			moves[iPlayer].direction=DIRECTION::UP;
 			break;
 		case DIRECTION::RIGHT:
-			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x+1,inGamePlayers[iPlayer].second.position.y))return;
+			if(this->isObstructed(inGamePlayers[iPlayer]->second.position.x+1,inGamePlayers[iPlayer]->second.position.y))return;
 			moves[iPlayer].direction=DIRECTION::RIGHT;
 			break;
 		case DIRECTION::DOWN:
-			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x,inGamePlayers[iPlayer].second.position.y+1))return;
+			if(this->isObstructed(inGamePlayers[iPlayer]->second.position.x,inGamePlayers[iPlayer]->second.position.y+1))return;
 			moves[iPlayer].direction=DIRECTION::DOWN;
 			break;
 		case DIRECTION::LEFT:
-			if(this->isObstructed(inGamePlayers[iPlayer].second.position.x-1,inGamePlayers[iPlayer].second.position.y))return;
+			if(this->isObstructed(inGamePlayers[iPlayer]->second.position.x-1,inGamePlayers[iPlayer]->second.position.y))return;
 			moves[iPlayer].direction=DIRECTION::LEFT;
 			break;
 		default:
 			return;
 	}
 
-	moves[iPlayer].endTime=inGamePlayers[iPlayer].second.speed;
+	moves[iPlayer].endTime=inGamePlayers[iPlayer]->second.speed;
 	moves[iPlayer].timer=0;
 	moves[iPlayer].tChangePosition=(moves[iPlayer].endTime/2);
 	this->notifyMove(iPlayer,moves[iPlayer]);
@@ -230,14 +237,14 @@ void Game::move(const unsigned short& iPlayer,const websocketpp::server::connect
 
 Player* Game::getPlayer(const unsigned short& iPlayer)const{
 	if(iPlayer<0 || !(iPlayer<this->nbPlayers))return (Player*)0;
-	return this->inGamePlayers[iPlayer].first;
+	return this->inGamePlayers[iPlayer]->first;
 }
 
 void Game::changePlayerColor(const websocketpp::server::connection_ptr& con,const unsigned short& color){
 	if(!isColorAvalaible(color))return;
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i].first->getCon() == con){
-			inGamePlayers[i].second.color=(PLAYER_COLOR)color;
+		if(inGamePlayers[i]->first->getCon() == con){
+			inGamePlayers[i]->second.color=(PLAYER_COLOR)color;
 		}
 	}
 }
@@ -247,14 +254,14 @@ void Game::notifyEnteringRoom(Player* player){
 	oss<<getID();
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ENTERING_ROOM))+"\",\"value\":{\"name\":\""+player->getName()+"\",\"id\":\""+player->getID()+"\",\"gameID\":\""+oss.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
 void Game::notifyExitingRoom(const std::string& playerID){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_EXITING_ROOM))+"\",\"value\":{\"playerID\":\""+playerID+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -264,7 +271,7 @@ void Game::notifyGameStarted(){
 	oss<<getID();
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_STARTED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -273,7 +280,7 @@ void Game::notifyGameFinished(){
 	oss<<getID();
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_GAME_FINISHED))+"\",\"value\":{\"gameID\":\""+oss.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -285,19 +292,19 @@ void Game::notifyColorChanged(){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_COLOR_CHANGED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"colors\":[";
 	
 	std::ostringstream oss2;
-	oss2<<inGamePlayers[0].second.color;
-	m+="\"playerID\":\""+inGamePlayers[0].first->getID()+"\",\"color\":\""+oss2.str()+"\"";
+	oss2<<inGamePlayers[0]->second.color;
+	m+="\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"";
 
 	for(unsigned short i = 1 ; i < this->nbPlayers ; i++){
 		std::ostringstream oss3;
-		oss3<<inGamePlayers[0].second.color;
-		m+=",\"playerID\":\""+inGamePlayers[i].first->getID()+"\",\"color\":\""+oss3.str()+"\"";
+		oss3<<inGamePlayers[0]->second.color;
+		m+=",\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"";
 	}
 
 	m+="]}}";
 
 	for(unsigned short i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -308,7 +315,7 @@ void Game::notifyMove(const unsigned short& iPlayer,const Move& move){
 	oss3<<move.direction;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MOVE))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"direction\":\""+oss3.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -321,7 +328,7 @@ void Game::notifyBombDropped(const unsigned short& iPlayer,const Bomb& bomb){
 	oss5<<bomb.radius;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_DROPPED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"x\":\""+oss3.str()+"\",\"y\":\""+oss4.str()+"\",\"radius\":\""+oss5.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -331,7 +338,7 @@ void Game::notifyBlockDestroyed(const Position& position){
 	oss2<<position.y;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BLOCK_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -341,7 +348,7 @@ void Game::notifyBombExploded(const Position& position){
 	oss2<<position.y;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_EXPLODED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -352,7 +359,7 @@ void Game::notifyItemAppeared(const unsigned short& itemType, const Position& po
 	oss3<<position.y;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_APPEARED))+"\",\"value\":{\"itemType\":\""+oss1.str()+"\",\"x\":\""+oss2.str()+"\",\"y\":\""+oss3.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -362,7 +369,7 @@ void Game::notifyBonusAcquired(const unsigned short& iPlayer, const unsigned sho
 	oss2<<itemType;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BONUS_ACQUIRED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\",\"itemType\":\""+oss2.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -372,7 +379,7 @@ void Game::notifyItemPickedup(const Position& position){
 	oss2<<position.y;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_PICKEDUP))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -382,7 +389,7 @@ void Game::notifyItemDestroyed(const Position& position){
 	oss2<<position.y;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -391,7 +398,7 @@ void Game::notifyPlayerKilled(const unsigned short& iPlayer){
 	oss1<<iPlayer;
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_KILLED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		inGamePlayers[i].first->getCon()->send(m);
+		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }
 
@@ -409,16 +416,16 @@ void Game::perform(){
 			if(moves[i].timer == moves[i].tChangePosition){
 				switch(moves[i].direction){
 				case DIRECTION::UP:
-					inGamePlayers[i].second.position.y--;
+					inGamePlayers[i]->second.position.y--;
 					break;
 				case DIRECTION::RIGHT:
-					inGamePlayers[i].second.position.x++;
+					inGamePlayers[i]->second.position.x++;
 					break;
 				case DIRECTION::DOWN:
-					inGamePlayers[i].second.position.y++;
+					inGamePlayers[i]->second.position.y++;
 					break;
 				case DIRECTION::LEFT:
-					inGamePlayers[i].second.position.x--;
+					inGamePlayers[i]->second.position.x--;
 					break;
 				default:
 					return;
@@ -429,7 +436,7 @@ void Game::perform(){
 
 			//verification mort du personnage
 			if(checkDeath(i)){
-				inGamePlayers[i].second.alive=false;
+				inGamePlayers[i]->second.alive=false;
 				this->notifyPlayerKilled(i);
 			}
 		}
@@ -673,34 +680,34 @@ void Game::doDeflagration(const Bomb& bomb){
 }
 
 void Game::checkBonusAcquisition(const unsigned short& iPlayer){
-	if(this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] != ITEM_TYPE::ITEM_NONE){
-		switch (this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y])
+	if(this->items[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y] != ITEM_TYPE::ITEM_NONE){
+		switch (this->items[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y])
 		{
 		case ITEM_TYPE::BOOT:
-			if(inGamePlayers[iPlayer].second.speed>8)
-				inGamePlayers[iPlayer].second.speed--;
+			if(inGamePlayers[iPlayer]->second.speed>8)
+				inGamePlayers[iPlayer]->second.speed--;
 			break;
 		case ITEM_TYPE::BOMB:
-			inGamePlayers[iPlayer].second.maxBomb++;
+			inGamePlayers[iPlayer]->second.maxBomb++;
 			break;
 		case ITEM_TYPE::POWER:
-			inGamePlayers[iPlayer].second.radius++;
+			inGamePlayers[iPlayer]->second.radius++;
 			break;
 		}
-		this->notifyBonusAcquired(iPlayer,this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y]);
-		this->items[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] = ITEM_TYPE::ITEM_NONE;
-		this->notifyItemPickedup(inGamePlayers[iPlayer].second.position);
+		this->notifyBonusAcquired(iPlayer,this->items[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y]);
+		this->items[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y] = ITEM_TYPE::ITEM_NONE;
+		this->notifyItemPickedup(inGamePlayers[iPlayer]->second.position);
 	}
 }
 
 bool Game::checkDeath(const unsigned short& iPlayer)const{
-	return (deflagrations[inGamePlayers[iPlayer].second.position.x][inGamePlayers[iPlayer].second.position.y] > 0);
+	return (deflagrations[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y] > 0);
 }
 
 bool Game::isGameFinished()const{
 	int cpt = 0 ; 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i].second.alive)
+		if(inGamePlayers[i]->second.alive)
 			cpt++;
 	}
 

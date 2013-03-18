@@ -4,15 +4,8 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
-../Bombe.cpp \
 ../ChatBox.cpp \
-../ClientDataRefresher.cpp \
 ../Game.cpp \
-../GameManager.cpp \
-../GamePerformer.cpp \
-../Item.cpp \
-../ItemBombe.cpp \
-../ItemPower.cpp \
 ../JsonParser.cpp \
 ../Map.cpp \
 ../Message.cpp \
@@ -20,19 +13,11 @@ CPP_SRCS += \
 ../Request.cpp \
 ../RequestCoordinator.cpp \
 ../RequestFactory.cpp \
-../Room.cpp \
 ../WSServer.cpp 
 
 OBJS += \
-./Bombe.o \
 ./ChatBox.o \
-./ClientDataRefresher.o \
 ./Game.o \
-./GameManager.o \
-./GamePerformer.o \
-./Item.o \
-./ItemBombe.o \
-./ItemPower.o \
 ./JsonParser.o \
 ./Map.o \
 ./Message.o \
@@ -40,19 +25,11 @@ OBJS += \
 ./Request.o \
 ./RequestCoordinator.o \
 ./RequestFactory.o \
-./Room.o \
 ./WSServer.o 
 
 CPP_DEPS += \
-./Bombe.d \
 ./ChatBox.d \
-./ClientDataRefresher.d \
 ./Game.d \
-./GameManager.d \
-./GamePerformer.d \
-./Item.d \
-./ItemBombe.d \
-./ItemPower.d \
 ./JsonParser.d \
 ./Map.d \
 ./Message.d \
@@ -60,7 +37,6 @@ CPP_DEPS += \
 ./Request.d \
 ./RequestCoordinator.d \
 ./RequestFactory.d \
-./Room.d \
 ./WSServer.d 
 
 

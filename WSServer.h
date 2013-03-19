@@ -40,18 +40,18 @@ public:
 	void							selectMapForGame(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
 	void							closeConnection(const websocketpp::server::connection_ptr&);
 	void							startGame(const unsigned short&,const websocketpp::server::connection_ptr&);
-	void							stopGame(const unsigned short&);
 	void							chooseColor(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
 	void							tickInGame();
 	void							redirectMoveRequest(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&,const unsigned short&);
 	void							redirectDropBombRequest(const unsigned short&,const unsigned short&,const websocketpp::server::connection_ptr&);
-
+	void							addGameToStoppingGames(const unsigned short&);
 
 private:
 	std::list<Player*>				outGamePlayers;
 	std::list<Game*> 				games;
 	std::list<Game*>				runningGames;
 	boost::mutex**					gameLockers;
+	boost::mutex					stoppingGamesLocker;
 	Game**							games_ptr;//tableau de pointeurs sur instances de Game, l'index est connu des clients pour optimiser la vitesse de traitement des requetes
 	RequestCoordinator				coordinator;
 	boost::mutex 					lockOutGamers;
@@ -59,10 +59,12 @@ private:
 	boost::mutex					lockOutGameMessages;
 	RequestFactory*					requestFactory;
 	ChatBox							chatBox;
+	std::list<unsigned short>		stoppingGames;
 
 	unsigned long					addNewGame(Player*);
 	void							addNewPlayer(const websocketpp::server::connection_ptr&,const std::string&);
 	void							removeGame(const unsigned short&);
+	void							stopGame(const unsigned short&);
 
 	void notifyPlayerJoined(const std::string&,const std::string&);
 	void notifyMessageSent(const std::string&,const std::string&,const std::string&,const std::string&);

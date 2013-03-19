@@ -52,17 +52,22 @@ void WSServer::startGame(const unsigned short& gameID,const websocketpp::server:
 		this->notifyError("Seul l'hôte peut lancer une partie",con);
 		return;
 	}
-	this->runningGames.push_back(games_ptr[gameID]);
+	
+	if(games_ptr[gameID]->getNbPlayers()<2){
+		this->notifyError("Pas assez de joueurs",con);
+		return;
+	}
+	
 	games_ptr[gameID]->startGame();
 	this->gameLockers[gameID]=new boost::mutex();
+	this->runningGames.push_back(games_ptr[gameID]);
+
 }
 
 void WSServer::stopGame(const unsigned short& gameID){
-	boost::unique_lock<boost::mutex> l(lockInGamers);
 	std::list<Game*>::iterator iGame;
 	iGame = std::find_if(this->runningGames.begin(), this->runningGames.end(), [gameID](Game* game) { return game->getID() == gameID; });
 	this->runningGames.erase(iGame);
-	games_ptr[gameID]->notifyGameFinished();
 	delete this->gameLockers[gameID];
 	gameLockers[gameID]=((boost::mutex*)NULL);
 }
@@ -95,9 +100,20 @@ void process(RequestCoordinator* coordinator){
 void WSServer::tickInGame(){
 	while(1){
 		boost::this_thread::sleep(boost::posix_time::milliseconds(WSServer::IN_GAME_TICK));
+		boost::unique_lock<boost::mutex> l1(this->lockInGamers);
 		for(Game* game : this->runningGames){
-			boost::unique_lock<boost::mutex> l(*this->gameLockers[game->getID()]);
+			//boost::unique_lock<boost::mutex> l2(*this->gameLockers[game->getID()]);
 			game->perform();
+			std::cout<<"!";
+		}
+		
+		boost::unique_lock<boost::mutex> l2(this->stoppingGamesLocker);
+		while(!this->stoppingGames.empty()){
+			unsigned short i = stoppingGames.back();
+			stoppingGames.pop_back();
+			if(gameLockers[i]!=NULL){
+				this->stopGame(i);
+			}
 		}
 	}
 }
@@ -250,6 +266,13 @@ void WSServer::chooseColor(const unsigned short& gameID, const unsigned short& c
 	games_ptr[gameID]->changePlayerColor(con,color);
 
 	games_ptr[gameID]->notifyColorChanged();
+}
+
+void WSServer::addGameToStoppingGames(const unsigned short& id){
+	boost::mutex::scoped_lock l(this->stoppingGamesLocker);
+	if(id < NB_SIMULTANEOUS_GAMES && this->gameLockers[id] != ((boost::mutex*)NULL)){
+		this->stoppingGames.push_back(id);
+	}
 }
 
 void WSServer::notifyPlayerJoined(const std::string& id,const std::string& name){

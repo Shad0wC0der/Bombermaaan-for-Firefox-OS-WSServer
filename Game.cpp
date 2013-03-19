@@ -51,6 +51,7 @@ bool Game::tryToRemovePlayerByCon(const websocketpp::server::connection_ptr& con
 }
 
 Game::~Game() {
+	//delete players
 	for(int i = 0 ; i < MAX_PLAYER ; i++){
 		delete this->inGamePlayers[i];
 	}
@@ -119,11 +120,12 @@ void Game::startGame(){
 
 	//initialisation aleatoire des blocs
 	this->blocks=new bool*[this->map.getWidth()];
-	for(int i=0;i<this->map.getWidth();i++)this->blocks[i]=new bool[this->map.getHeight()];
+	for(int i=0;i<this->map.getWidth();i++)
+		this->blocks[i]=new bool[this->map.getHeight()];
 
-	for(int y = 0 ; y < this->map.getWidth() ; y++) {
-		for(int x = 0 ; x < this->map.getHeight() ; x++) {
-			if (this->map.getBlocks()[y][x] == 2) {
+	for(int x = 0 ; x < this->map.getWidth() ; x++) {
+		for(int y = 0 ; y < this->map.getHeight() ; y++) {
+			if (this->map.getBlocks()[x][y] == 2) {
 				bool free=true;	
 				for(int i = 0 ; i < this->nbPlayers ; i++){
 					if (!(fabs((double)(inGamePlayers[i]->second.position.x-x)) > 1 || fabs((double)(inGamePlayers[i]->second.position.y-y)) > 1)){
@@ -143,7 +145,7 @@ void Game::startGame(){
 		}
 	}
 
-	//intialisation des obstructions par blocs
+	//intialisation des obstructions par bombes
 	this->bombObstructions=new bool*[this->map.getWidth()];
 	for(int i=0;i<this->map.getWidth();i++)this->bombObstructions[i]=new bool[this->map.getHeight()];
 	for(int i = 0 ; i < this->map.getWidth() ; i++){
@@ -169,18 +171,36 @@ void Game::startGame(){
 
 	//initialisation deflagrations 
 	this->deflagrations=new unsigned short*[this->map.getWidth()];
-	for(int i=0;i<this->map.getWidth();i++)this->deflagrations[i]=new unsigned short[this->map.getHeight()];
+	for(int i=0 ; i<this->map.getWidth() ; i++)this->deflagrations[i]=new unsigned short[this->map.getHeight()];
 	for(int i = 0 ; i < this->map.getWidth() ; i++){
 		for(int y = 0 ; y < this->map.getHeight() ; y++){
 			((unsigned short*)deflagrations[i])[y]=0;
 		}
 	}
-
 	this->notifyGameStarted();
 }
 
 void Game::stopGame(){
-	this->server->stopGame(this->id);
+	this->server->addGameToStoppingGames(this->id);
+
+	//delete blocks
+	for(int i=0;i<this->map.getWidth();i++) 
+		delete [] ((this->blocks)[i]);
+	delete [] (this->blocks);
+	
+
+	//delete bombs obstructions
+	for(int i=0;i<this->map.getWidth();i++)delete [] this->bombObstructions[i];
+	delete [] this->bombObstructions;
+
+
+	//delete items
+	for(int i=0;i<this->map.getWidth();i++)delete [] this->items[i];
+	delete [] this->items;
+
+	//delete deflags 
+	for(int i=0;i<this->map.getWidth();i++) delete [] this->deflagrations[i];
+	delete [] this->deflagrations;
 }
 
 void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con){
@@ -403,64 +423,64 @@ void Game::notifyPlayerKilled(const unsigned short& iPlayer){
 }
 
 void Game::perform(){
+
 	//verification fin de partie
 	if(this->isGameFinished()){
 		this->notifyGameFinished();
 		this->stopGame();
-	}
-
-	//mouvements
-	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(moves[i].timer<moves[i].endTime){
-			moves[i].timer++;
-			if(moves[i].timer == moves[i].tChangePosition){
-				switch(moves[i].direction){
-				case DIRECTION::UP:
-					inGamePlayers[i]->second.position.y--;
-					break;
-				case DIRECTION::RIGHT:
-					inGamePlayers[i]->second.position.x++;
-					break;
-				case DIRECTION::DOWN:
-					inGamePlayers[i]->second.position.y++;
-					break;
-				case DIRECTION::LEFT:
-					inGamePlayers[i]->second.position.x--;
-					break;
-				default:
-					return;
+	}else{
+		//mouvements
+		for(int i = 0 ; i < this->nbPlayers ; i++){
+			if(moves[i].timer<moves[i].endTime){
+				moves[i].timer++;
+				if(moves[i].timer == moves[i].tChangePosition){
+					switch(moves[i].direction){
+					case DIRECTION::UP:
+						inGamePlayers[i]->second.position.y--;
+						break;
+					case DIRECTION::RIGHT:
+						inGamePlayers[i]->second.position.x++;
+						break;
+					case DIRECTION::DOWN:
+						inGamePlayers[i]->second.position.y++;
+						break;
+					case DIRECTION::LEFT:
+						inGamePlayers[i]->second.position.x--;
+						break;
+					default:
+						return;
+					}
+					//verification acquisition bonus
+					this->checkBonusAcquisition(i);
 				}
-				//verification acquisition bonus
-				this->checkBonusAcquisition(i);
-			}
 
-			//verification mort du personnage
-			if(checkDeath(i)){
-				inGamePlayers[i]->second.alive=false;
-				this->notifyPlayerKilled(i);
+				//verification mort du personnage
+				if(checkDeath(i)){
+					inGamePlayers[i]->second.alive=false;
+					this->notifyPlayerKilled(i);
+				}
 			}
 		}
-	}
 
-	//bombes
-	for(Bomb b : this->bombs){
-		if(b.timer==b.endTime){
-			//deflagration
-			this->doDeflagration(b);
-		}else{
-			b.timer++;
+		//bombes
+		for(Bomb b : this->bombs){
+			if(b.timer==b.endTime){
+				//deflagration
+				this->doDeflagration(b);
+			}else{
+				b.timer++;
+			}
 		}
-	}
 
-	//deflagrations
-	for(int x = 0 ; x < this->map.getWidth() ; x++){
-		for(int y = 0 ; y < this->map.getHeight() ; y++){
-			if(this->deflagrations[x][y]>0){
-				this->deflagrations[x][y]--;
+		//deflagrations
+		for(int x = 0 ; x < this->map.getWidth() ; x++){
+			for(int y = 0 ; y < this->map.getHeight() ; y++){
+				if(this->deflagrations[x][y]>0){
+					this->deflagrations[x][y]--;
+				}
 			}
 		}
 	}
-
 }
 
 bool Game::isObstructed(const unsigned short& x,const unsigned short& y){

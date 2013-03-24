@@ -13,6 +13,21 @@ void RequestCreateGame::process(void){
 	this->server->createGame(this->con);
 }
 
+void RequestJoinGame::process(void){
+	try{
+		json_value* jv = parser->getCurrentValue()->first_child;
+		if(!jv || jv->type != json_type::JSON_STRING) throw 0;
+		std::string gameID = jv->string_value;
+
+		int igameid=atoi(gameID.c_str());
+		if(igameid==0 && gameID.compare("0")!=0)return;//security
+
+		this->server->switchPlayerToGame(this->con,igameid);
+	}catch(int){
+		con->send("wrong json format");
+	}
+}
+
 void RequestRefreshOutGameData::process(void){
 	con->send(this->server->getOutGameData());
 }

@@ -213,7 +213,7 @@ void WSServer::addNewPlayer(const websocketpp::server::connection_ptr& con,const
 	outGamePlayers.push_back(p);
 }
 
-bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int& gameID){
+bool WSServer::switchPlayerToGame(const websocketpp::server::connection_ptr& con,const unsigned int& gameID){
 	boost::mutex::scoped_lock l1(lockOutGamers);
 	boost::mutex::scoped_lock l2(lockInGamers);
 
@@ -223,7 +223,7 @@ bool WSServer::switchPlayerToGame(const std::string& playerID,const unsigned int
 
 		std::list<Player*>::iterator iPlayer = std::find_if(outGamePlayers.begin(),
 																	outGamePlayers.end(),
-																	[playerID] (Player *p) {return p->getID() == playerID;});
+																	[con] (Player *p) {return p->getCon() == con;});
 		if (iPlayer == outGamePlayers.end()) {
 			return false;
 		}else{

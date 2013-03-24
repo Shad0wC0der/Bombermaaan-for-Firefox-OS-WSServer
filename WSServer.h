@@ -33,7 +33,7 @@ public:
 	
 	ChatBox*						getChatBox(){return &chatBox;};
 	std::string						getOutGameData();
-	bool							switchPlayerToGame(const std::string&,const unsigned int&);
+	bool							switchPlayerToGame(const websocketpp::server::connection_ptr&,const unsigned int&);
 	void							createGame(const websocketpp::server::connection_ptr&);
 	void							createPlayer(const websocketpp::server::connection_ptr&,const std::string&);
 	void							createMessage(const std::string&,const std::string&,const std::string&,const std::string&,const std::string&);

@@ -41,6 +41,11 @@ Request* RequestFactory::createRequest(const websocketpp::server::handler::conne
 			delete parser;
 			return new RequestCreateGame(con,this->server);
 		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(JOIN_GAME)) == 0){
+			if(parser->nextValue()){
+				return new RequestJoinGame(parser,con,this->server);
+			}
+		}
 		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(SELECT_SERVER_MAP)) == 0){
 			return new RequestSelectMap(parser,con,this->server);
 		}

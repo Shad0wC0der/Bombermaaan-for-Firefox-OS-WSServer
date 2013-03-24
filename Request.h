@@ -42,7 +42,7 @@ private:
 
 class RequestJoinGame : public Request{
 public:
-	RequestJoinGame(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),server(server){}
+	RequestJoinGame(JsonParser* parser,const websocketpp::server::handler::connection_ptr& con,WSServer* server) : Request(con),parser(parser),server(server){}
 	void process(void);
 	virtual ~RequestJoinGame(){delete parser;}
 private:

@@ -104,7 +104,6 @@ void WSServer::tickInGame(){
 		for(Game* game : this->runningGames){
 			//boost::unique_lock<boost::mutex> l2(*this->gameLockers[game->getID()]);
 			game->perform();
-			std::cout<<"!";
 		}
 		
 		boost::unique_lock<boost::mutex> l2(this->stoppingGamesLocker);
@@ -180,7 +179,6 @@ void WSServer::createMessage(const std::string& message,const std::string& autho
 		this->chatBox.addMessage(m);
 		this->notifyMessageSent(m->getMessage(),m->getAuthorName(),m->getAuthorID(),m->getSubmitTime());
 	}else if(std::string(messageType).compare(stringify(TO_ROOM)) == 0){
-	
 	}else if(std::string(messageType).compare(stringify(TO_PLAYER)) == 0){
 	
 	}
@@ -232,7 +230,6 @@ bool WSServer::switchPlayerToGame(const websocketpp::server::connection_ptr& con
 			outGamePlayers.erase(iPlayer);
 			std::ostringstream oss;
 			oss<<gameID;
-			games_ptr[gameID]->notifyEnteringRoom(p);
 			return true;
 		} 
 

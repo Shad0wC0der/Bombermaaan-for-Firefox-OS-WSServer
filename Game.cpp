@@ -66,7 +66,9 @@ bool Game::addPlayer(Player* player){
 		this->inGamePlayers[this->nbPlayers]->second.radius=2;
 		this->inGamePlayers[this->nbPlayers]->second.maxBomb=1;
 		this->inGamePlayers[this->nbPlayers]->second.bombUsed=0;
-		this->inGamePlayers[this->nbPlayers++]->second.alive=true;
+		this->inGamePlayers[this->nbPlayers++]->second.alive=false;
+		this->notifyEnteringRoom(player);
+		this->refreshInGameData(player);
 		return true;
 	}
 	return false;
@@ -285,6 +287,32 @@ void Game::notifyExitingRoom(const std::string& playerID){
 	}
 }
 
+void Game::refreshInGameData(Player* player){
+	std::string m = "{\"type\":\""+std::string(stringify(REFRESH_IN_GAME_DATA))+"\",\"value\":{\"playerIDs\":[\""+this->inGamePlayers[0]->first->getID()+"\"";
+	for(int i = 1 ; i < this->nbPlayers ; i++){
+		m+=",\""+inGamePlayers[i]->first->getID()+"\"";
+	}
+	m+="],\"playerNames\":[\""+inGamePlayers[0]->first->getName()+"\"";
+	for(int i = 1 ; i < this->nbPlayers ; i++){
+		m+=",\""+inGamePlayers[i]->first->getID()+"\"";
+	}
+	
+	{
+	std::ostringstream oss;
+	oss<<inGamePlayers[0]->second.color;
+	m+="],\"playerColors\":[\""+oss.str()+"\"";
+	}
+
+	for(int i = 1 ; i < this->nbPlayers ; i++){
+		std::ostringstream oss;
+		oss<<inGamePlayers[i]->second.color;
+		m+=",\""+oss.str()+"\"";
+	}
+
+	m+="]}}";
+
+	player->getCon()->send(m);
+}
 
 void Game::notifyGameStarted(){
 	std::ostringstream oss;

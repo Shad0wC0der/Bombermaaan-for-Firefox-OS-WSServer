@@ -100,6 +100,7 @@ public:
 
 	void notifyEnteringRoom(Player* player);
 	void notifyExitingRoom(const std::string& playerID);
+	void refreshInGameData(Player* player);
 	void notifyGameStarted();
 	void notifyGameFinished();
 	void notifyColorChanged();

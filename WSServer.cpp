@@ -163,8 +163,6 @@ void WSServer::createGame(const websocketpp::server::connection_ptr& hostCon){
 		unsigned long idGame = addNewGame(p);
 		std::ostringstream oss;
 		oss<<idGame;
-
-		games_ptr[idGame]->notifyEnteringRoom(p);
 	}
 }
 

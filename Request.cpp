@@ -29,7 +29,7 @@ void RequestJoinGame::process(void){
 }
 
 void RequestRefreshOutGameData::process(void){
-	con->send(this->server->getOutGameData());
+	con->send(this->server->getOutGameData(this->con));
 }
 
 void RequestMessage::process(void){

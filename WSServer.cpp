@@ -394,22 +394,22 @@ void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
           std::cerr<<"Tried to remove unexisting player."<<std::endl;
 }
 
-std::string WSServer::getOutGameData(){
+std::string WSServer::getOutGameData(const websocketpp::server::connection_ptr& con){
 	
-	std::string response="{\"type\":\""+std::string(stringify(REFRESH_OUT_GAME_DATA))+"\",\"value\":{\"games\":[";
+	std::string response="{\"type\":\""+std::string(stringify(REFRESH_OUT_GAME_DATA))+"\",\"value\":{\"playerID\":\""+get_con_id(con)+"\",\"games\":[";
 	boost::mutex::scoped_lock l1(this->lockInGamers);
 	if(!(this->games.empty())){
 	std::list<Game*>::iterator it = this->games.begin();
 	std::ostringstream oss;
 	oss<<(*it)->getID();
 	std::string id=oss.str();
-	response+="\""+id+"\"";
+	response+="{\"id\":\""+id+"\",\"author\":\""+(*it)->getHost()->getName()+"\"}";
 	++it;
 	while(it != this->games.end()){
 		std::ostringstream oss;
 		oss<<(*it)->getID();
 		std::string id=oss.str();
-		response+=",\""+id+"\"";
+		response+=",{\"id\":\""+id+"\",\"author\":\""+(*it)->getHost()->getName()+"\"}";
 		++it;
 		}
 	}

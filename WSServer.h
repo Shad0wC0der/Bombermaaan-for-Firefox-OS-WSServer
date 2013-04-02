@@ -32,7 +32,7 @@ public:
 	RequestCoordinator*				getCoordinator(){return &coordinator;}
 	
 	ChatBox*						getChatBox(){return &chatBox;};
-	std::string						getOutGameData();
+	std::string						getOutGameData(const websocketpp::server::connection_ptr&);
 	bool							switchPlayerToGame(const websocketpp::server::connection_ptr&,const unsigned int&);
 	void							createGame(const websocketpp::server::connection_ptr&);
 	void							createPlayer(const websocketpp::server::connection_ptr&,const std::string&);

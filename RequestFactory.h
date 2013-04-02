@@ -38,6 +38,7 @@ public:
 					   NOTIFY_COLOR_CHANGED,
 					   SELECT_SERVER_MAP,
 					   CHOOSE_COLOR,
+					   NOTIFY_INIT_GAME_DATA,
 					   NOTIFY_GAME_STARTED,
 					   NOTIFY_GAME_FINISHED,
 					   /* in-game requests */

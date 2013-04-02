@@ -34,7 +34,8 @@ enum PLAYER_COLOR{
 				WHITE,
 				BLACK,
 				BLUE,
-				RED
+				RED,
+				GREEN
 				};
 
 struct Move{
@@ -113,6 +114,7 @@ public:
 	void notifyItemPickedup(const Position&);
 	void notifyItemDestroyed(const Position&);
 	void notifyPlayerKilled(const unsigned short&);
+	void notifyInitGameData();
 
 private:
 	unsigned short						id;

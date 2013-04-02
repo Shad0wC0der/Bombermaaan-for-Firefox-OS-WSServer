@@ -10,7 +10,7 @@
 #include "Game.h"
 #include "WSServer.h"
 
-const unsigned short Game::NB_COLORS = 4;
+const unsigned short Game::NB_COLORS = 6;
 
 Game::Game(/*std::string name,*/Player* host,const unsigned short& id,WSServer* server) {
 	this->id = id;
@@ -110,6 +110,19 @@ PLAYER_COLOR Game::getColor(const unsigned short& color)const{
 }
 
 void Game::startGame(){
+	//check colors
+	//if none, set first available
+	for(int i = 0 ; i < this->nbPlayers ; i++){
+		if(this->inGamePlayers[i]->second.color == PLAYER_COLOR::COLOR_NONE){
+			for(int y = 1 ; y < this->NB_COLORS ; y++){
+				if(isColorAvalaible(y)){
+					this->inGamePlayers[i]->second.color=(PLAYER_COLOR)y;
+				}
+			}
+		}
+	}
+	this->notifyColorChanged();
+
 	//map
 	if (this->map.getBlocks() == 0)
 		this->map.setSMap(Map::maps[0]);
@@ -294,7 +307,7 @@ void Game::refreshInGameData(Player* player){
 	}
 	m+="],\"playerNames\":[\""+inGamePlayers[0]->first->getName()+"\"";
 	for(int i = 1 ; i < this->nbPlayers ; i++){
-		m+=",\""+inGamePlayers[i]->first->getID()+"\"";
+		m+=",\""+inGamePlayers[i]->first->getName()+"\"";
 	}
 	
 	{
@@ -352,6 +365,76 @@ void Game::notifyColorChanged(){
 	m+="]}}";
 
 	for(unsigned short i = 0 ; i < this->nbPlayers ; i++){
+		inGamePlayers[i]->first->getCon()->send(m);
+	}
+}
+
+void Game::notifyInitGameData(){
+
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_INIT_GAME_DATA))+"\",\"value\":{\"map\":[";
+	
+	m+="[";
+	m+=this->map.getBlocks()[0][0];
+	for(int y = 1 ; y < this->map.getHeight() ; y++){
+		m+=","+this->map.getBlocks()[0][y];
+	}
+	m+="]";
+
+	for(int i = 1 ; i < this->map.getWidth() ; i++){
+		m+=",";
+		m+="[";
+		m+=this->map.getBlocks()[i][0];
+		for(int y = 1 ; y < this->map.getHeight() ; y++){
+			m+=","+this->map.getBlocks()[i][y];
+		}
+		m+="]";
+	}
+
+	m+="],\"characters\":[";
+
+	{
+		std::ostringstream ossx,ossy,ossspeed,ossradius,ossbombUsed,ossmaxBomb;
+		ossx<<this->inGamePlayers[0]->second.position.x;
+		ossy<<this->inGamePlayers[0]->second.position.y;
+		ossspeed<<this->inGamePlayers[0]->second.speed;
+		ossradius<<this->inGamePlayers[0]->second.radius;
+		ossbombUsed<<this->inGamePlayers[0]->second.bombUsed;
+		ossmaxBomb<<this->inGamePlayers[0]->second.maxBomb;
+		m+="{\"x\":\""+ossx.str()+"\",\"y\":\""+ossy.str()+"\",\"speed\":\""+ossspeed.str()+"\",\"radius\":\""+ossradius.str()+"\",\"bombUsed\":\""+ossbombUsed.str()+"\",\"maxBomb\":\""+ossmaxBomb.str()+"\"}";
+	}
+
+	for(int i = 1 ; i < this->nbPlayers ; i++){
+		std::ostringstream ossx,ossy,ossspeed,ossradius,ossbombUsed,ossmaxBomb;
+		ossx<<this->inGamePlayers[i]->second.position.x;
+		ossy<<this->inGamePlayers[i]->second.position.y;
+		ossspeed<<this->inGamePlayers[i]->second.speed;
+		ossradius<<this->inGamePlayers[i]->second.radius;
+		ossbombUsed<<this->inGamePlayers[i]->second.bombUsed;
+		ossmaxBomb<<this->inGamePlayers[i]->second.maxBomb;
+		m+=",{\"x\":\""+ossx.str()+"\",\"y\":\""+ossy.str()+"\",\"speed\":\""+ossspeed.str()+"\",\"radius\":\""+ossradius.str()+"\",\"bombUsed\":\""+ossbombUsed.str()+"\",\"maxBomb\":\""+ossmaxBomb.str()+"\"}";
+	}
+	m+="],\"blocks\":[";
+	
+	m+="[";
+	m+=this->blocks[0][0];
+	for(int y = 1 ; y < this->map.getHeight() ; y++){
+		m+=","+this->blocks[0][y];
+	}
+	m+="]";
+
+	for(int i = 1 ; i < this->map.getWidth() ; i++){
+		m+=",";
+		m+="[";
+		m+=this->blocks[i][0];
+		for(int y = 1 ; y < this->map.getHeight() ; y++){
+			m+=","+this->blocks[i][y];
+		}
+		m+="]";
+	}
+	m+="]";
+	m+="}}";
+
+	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
 }

@@ -354,12 +354,12 @@ void Game::notifyColorChanged(){
 	
 	std::ostringstream oss2;
 	oss2<<inGamePlayers[0]->second.color;
-	m+="\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"";
+	m+="{\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"}";
 
 	for(unsigned short i = 1 ; i < this->nbPlayers ; i++){
 		std::ostringstream oss3;
 		oss3<<inGamePlayers[0]->second.color;
-		m+=",\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"";
+		m+=",{\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"}";
 	}
 
 	m+="]}}";

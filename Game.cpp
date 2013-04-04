@@ -192,6 +192,7 @@ void Game::startGame(){
 			((unsigned short*)deflagrations[i])[y]=0;
 		}
 	}
+	this->notifyInitGameData();
 	this->notifyGameStarted();
 }
 
@@ -374,18 +375,31 @@ void Game::notifyInitGameData(){
 	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_INIT_GAME_DATA))+"\",\"value\":{\"map\":[";
 	
 	m+="[";
-	m+=this->map.getBlocks()[0][0];
-	for(int y = 1 ; y < this->map.getHeight() ; y++){
-		m+=","+this->map.getBlocks()[0][y];
+	{
+		std::ostringstream oss;
+		oss<<map.getBlocks()[0][0];
+		m+=oss.str();
 	}
+
+	for(int y = 1 ; y < this->map.getHeight() ; y++){
+		std::ostringstream oss;
+		oss<<this->map.getBlocks()[0][y];
+		m+=","+oss.str();
+	}
+
 	m+="]";
 
 	for(int i = 1 ; i < this->map.getWidth() ; i++){
-		m+=",";
-		m+="[";
-		m+=this->map.getBlocks()[i][0];
+		{
+			m+=",[";
+			std::ostringstream oss;
+			oss<<this->map.getBlocks()[i][0];
+			m+=oss.str();
+		}
 		for(int y = 1 ; y < this->map.getHeight() ; y++){
-			m+=","+this->map.getBlocks()[i][y];
+			std::ostringstream oss;
+			oss<<this->map.getBlocks()[i][y];
+			m+=","+oss.str();
 		}
 		m+="]";
 	}
@@ -416,23 +430,24 @@ void Game::notifyInitGameData(){
 	m+="],\"blocks\":[";
 	
 	m+="[";
-	m+=this->blocks[0][0];
+	m+=(this->blocks[0][0]?"true":"false");
 	for(int y = 1 ; y < this->map.getHeight() ; y++){
-		m+=","+this->blocks[0][y];
+		m+=(this->blocks[0][y]?",true":",false");
 	}
 	m+="]";
 
 	for(int i = 1 ; i < this->map.getWidth() ; i++){
-		m+=",";
-		m+="[";
-		m+=this->blocks[i][0];
+		m+=",[";
+		m+=(this->blocks[i][0]?"true":"false");
 		for(int y = 1 ; y < this->map.getHeight() ; y++){
-			m+=","+this->blocks[i][y];
+			m+=(this->blocks[i][0]?",true":",false");
 		}
 		m+="]";
 	}
 	m+="]";
 	m+="}}";
+
+	std::cout<<m;
 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);

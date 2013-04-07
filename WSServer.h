@@ -19,7 +19,7 @@ void tickInGame(WSServer* srv);
 
 class WSServer : public websocketpp::server::handler {
 public:
-	static const int				IN_GAME_TICK = 80;
+	static const int				IN_GAME_TICK = 50;
 	static const int				NB_SIMULTANEOUS_GAMES=50;
 
 	void							on_open(websocketpp::server::connection_ptr);

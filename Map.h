@@ -8,7 +8,7 @@
 #ifndef MAP_H_
 #define MAP_H_
 #include <sstream>
-
+#include <iostream>
 struct Position{
 	unsigned short int x;
 	unsigned short int y;

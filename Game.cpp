@@ -75,7 +75,7 @@ bool Game::addPlayer(Player* player){
 }
 
 bool Game::isColorAvalaible(const unsigned short& color)const{
-	if(color > NB_COLORS)
+	if(color >= NB_COLORS)
 		return false;
 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
@@ -114,9 +114,10 @@ void Game::startGame(){
 	//if none, set first available
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		if(this->inGamePlayers[i]->second.color == PLAYER_COLOR::COLOR_NONE){
-			for(int y = 1 ; y < this->NB_COLORS ; y++){
+			for(int y = 0; y < this->NB_COLORS ; y++){
 				if(isColorAvalaible(y)){
 					this->inGamePlayers[i]->second.color=(PLAYER_COLOR)y;
+					break;
 				}
 			}
 		}
@@ -131,6 +132,7 @@ void Game::startGame(){
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->second.position.x=this->map.getPlayerPosition(i).x;
 		inGamePlayers[i]->second.position.y=this->map.getPlayerPosition(i).y;
+		inGamePlayers[i]->second.alive=true;
 	}
 
 	//initialisation aleatoire des blocs
@@ -141,21 +143,24 @@ void Game::startGame(){
 	for(int x = 0 ; x < this->map.getWidth() ; x++) {
 		for(int y = 0 ; y < this->map.getHeight() ; y++) {
 			if (this->map.getBlocks()[x][y] == 2) {
-				bool free=true;	
+				bool free=true;
+				
 				for(int i = 0 ; i < this->nbPlayers ; i++){
 					if (!(fabs((double)(inGamePlayers[i]->second.position.x-x)) > 1 || fabs((double)(inGamePlayers[i]->second.position.y-y)) > 1)){
 						free=false;
 						break;
 					}
 				}
-				
-				if (free) {					
-					if (floor (rand() % 10 + 1) > 1) {
+
+				if (free) {
+					if (floor (rand() % 10) > 2) {
 						this->blocks[x][y]=true;
 					}else{
 						this->blocks[x][y]=false;
 					}
-				}	 
+				}else this->blocks[x][y]=false;
+			}else{
+				this->blocks[x][y]=false;
 			}
 		}
 	}
@@ -227,6 +232,7 @@ void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::con
 	if(this->bombObstructions[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y])return;
 
 	Bomb b;
+	b.playerSlot=iPlayer;
 	b.radius=inGamePlayers[iPlayer]->second.radius;
 	b.endTime=BOMB_TIMER;
 	b.timer=0;
@@ -314,13 +320,13 @@ void Game::refreshInGameData(Player* player){
 	{
 	std::ostringstream oss;
 	oss<<inGamePlayers[0]->second.color;
-	m+="],\"playerColors\":[\""+oss.str()+"\"";
+	m+="],\"playerColors\":["+oss.str()+"";
 	}
 
 	for(int i = 1 ; i < this->nbPlayers ; i++){
 		std::ostringstream oss;
 		oss<<inGamePlayers[i]->second.color;
-		m+=",\""+oss.str()+"\"";
+		m+=","+oss.str()+"";
 	}
 
 	m+="]}}";
@@ -355,12 +361,12 @@ void Game::notifyColorChanged(){
 	
 	std::ostringstream oss2;
 	oss2<<inGamePlayers[0]->second.color;
-	m+="{\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":\""+oss2.str()+"\"}";
+	m+="{\"playerID\":\""+inGamePlayers[0]->first->getID()+"\",\"color\":"+oss2.str()+"}";
 
 	for(unsigned short i = 1 ; i < this->nbPlayers ; i++){
 		std::ostringstream oss3;
 		oss3<<inGamePlayers[0]->second.color;
-		m+=",{\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":\""+oss3.str()+"\"}";
+		m+=",{\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":"+oss3.str()+"}";
 	}
 
 	m+="]}}";
@@ -414,7 +420,7 @@ void Game::notifyInitGameData(){
 		ossradius<<this->inGamePlayers[0]->second.radius;
 		ossbombUsed<<this->inGamePlayers[0]->second.bombUsed;
 		ossmaxBomb<<this->inGamePlayers[0]->second.maxBomb;
-		m+="{\"x\":\""+ossx.str()+"\",\"y\":\""+ossy.str()+"\",\"speed\":\""+ossspeed.str()+"\",\"radius\":\""+ossradius.str()+"\",\"bombUsed\":\""+ossbombUsed.str()+"\",\"maxBomb\":\""+ossmaxBomb.str()+"\"}";
+		m+="{\"x\":"+ossx.str()+",\"y\":"+ossy.str()+",\"speed\":"+ossspeed.str()+",\"radius\":"+ossradius.str()+",\"bombUsed\":"+ossbombUsed.str()+",\"maxBomb\":"+ossmaxBomb.str()+"}";
 	}
 
 	for(int i = 1 ; i < this->nbPlayers ; i++){
@@ -425,7 +431,7 @@ void Game::notifyInitGameData(){
 		ossradius<<this->inGamePlayers[i]->second.radius;
 		ossbombUsed<<this->inGamePlayers[i]->second.bombUsed;
 		ossmaxBomb<<this->inGamePlayers[i]->second.maxBomb;
-		m+=",{\"x\":\""+ossx.str()+"\",\"y\":\""+ossy.str()+"\",\"speed\":\""+ossspeed.str()+"\",\"radius\":\""+ossradius.str()+"\",\"bombUsed\":\""+ossbombUsed.str()+"\",\"maxBomb\":\""+ossmaxBomb.str()+"\"}";
+		m+=",{\"x\":"+ossx.str()+",\"y\":"+ossy.str()+",\"speed\":"+ossspeed.str()+",\"radius\":"+ossradius.str()+",\"bombUsed\":"+ossbombUsed.str()+",\"maxBomb\":"+ossmaxBomb.str()+"}";
 	}
 	m+="],\"blocks\":[";
 	
@@ -440,14 +446,12 @@ void Game::notifyInitGameData(){
 		m+=",[";
 		m+=(this->blocks[i][0]?"true":"false");
 		for(int y = 1 ; y < this->map.getHeight() ; y++){
-			m+=(this->blocks[i][0]?",true":",false");
+			m+=(this->blocks[i][y]?",true":",false");
 		}
 		m+="]";
 	}
 	m+="]";
 	m+="}}";
-
-	std::cout<<m;
 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
@@ -459,7 +463,7 @@ void Game::notifyMove(const unsigned short& iPlayer,const Move& move){
 	oss1<<getID();
 	oss2<<iPlayer;
 	oss3<<move.direction;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MOVE))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"direction\":\""+oss3.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_MOVE))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":"+oss2.str()+",\"direction\":"+oss3.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -472,7 +476,7 @@ void Game::notifyBombDropped(const unsigned short& iPlayer,const Bomb& bomb){
 	oss3<<bomb.position.x;
 	oss4<<bomb.position.y;
 	oss5<<bomb.radius;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_DROPPED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":\""+oss2.str()+"\",\"x\":\""+oss3.str()+"\",\"y\":\""+oss4.str()+"\",\"radius\":\""+oss5.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_DROPPED))+"\",\"value\":{\"gameID\":\""+oss1.str()+"\",\"playerSlot\":"+oss2.str()+",\"x\":"+oss3.str()+",\"y\":"+oss4.str()+",\"radius\":"+oss5.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -482,7 +486,7 @@ void Game::notifyBlockDestroyed(const Position& position){
 	std::ostringstream oss1,oss2;
 	oss1<<position.x;
 	oss2<<position.y;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BLOCK_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BLOCK_DESTROYED))+"\",\"value\":{\"x\":"+oss1.str()+",\"y\":"+oss2.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -492,7 +496,7 @@ void Game::notifyBombExploded(const Position& position){
 	std::ostringstream oss1,oss2;
 	oss1<<position.x;
 	oss2<<position.y;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_EXPLODED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BOMB_EXPLODED))+"\",\"value\":{\"x\":"+oss1.str()+",\"y\":"+oss2.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -503,7 +507,7 @@ void Game::notifyItemAppeared(const unsigned short& itemType, const Position& po
 	oss1<<itemType;
 	oss2<<position.x;
 	oss3<<position.y;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_APPEARED))+"\",\"value\":{\"itemType\":\""+oss1.str()+"\",\"x\":\""+oss2.str()+"\",\"y\":\""+oss3.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_APPEARED))+"\",\"value\":{\"itemType\":"+oss1.str()+",\"x\":"+oss2.str()+",\"y\":"+oss3.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -513,7 +517,7 @@ void Game::notifyBonusAcquired(const unsigned short& iPlayer, const unsigned sho
 	std::ostringstream oss1,oss2;
 	oss1<<iPlayer;
 	oss2<<itemType;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BONUS_ACQUIRED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\",\"itemType\":\""+oss2.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_BONUS_ACQUIRED))+"\",\"value\":{\"playerSlot\":"+oss1.str()+",\"itemType\":"+oss2.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -523,7 +527,7 @@ void Game::notifyItemPickedup(const Position& position){
 	std::ostringstream oss1,oss2;
 	oss1<<position.x;
 	oss2<<position.y;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_PICKEDUP))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_PICKEDUP))+"\",\"value\":{\"x\":"+oss1.str()+",\"y\":"+oss2.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -533,7 +537,7 @@ void Game::notifyItemDestroyed(const Position& position){
 	std::ostringstream oss1,oss2;
 	oss1<<position.x;
 	oss2<<position.y;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_DESTROYED))+"\",\"value\":{\"x\":\""+oss1.str()+"\",\"y\":\""+oss2.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_ITEM_DESTROYED))+"\",\"value\":{\"x\":"+oss1.str()+",\"y\":"+oss2.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -542,7 +546,7 @@ void Game::notifyItemDestroyed(const Position& position){
 void Game::notifyPlayerKilled(const unsigned short& iPlayer){
 	std::ostringstream oss1;
 	oss1<<iPlayer;
-	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_KILLED))+"\",\"value\":{\"playerSlot\":\""+oss1.str()+"\"}}";
+	std::string m = "{\"type\":\""+std::string(stringify(NOTIFY_PLAYER_KILLED))+"\",\"value\":{\"playerSlot\":"+oss1.str()+"}}";
 	for(int i = 0 ; i < this->nbPlayers ; i++){
 		inGamePlayers[i]->first->getCon()->send(m);
 	}
@@ -589,7 +593,7 @@ void Game::perform(){
 		}
 
 		//bombes
-		for(Bomb b : this->bombs){
+		for(Bomb& b : this->bombs){
 			if(b.timer==b.endTime){
 				//deflagration
 				this->doDeflagration(b);
@@ -597,6 +601,15 @@ void Game::perform(){
 				b.timer++;
 			}
 		}
+		
+		//supression des bombes qui ont explosé
+		for(Bomb* b : this->bombsToRemove){
+			this->inGamePlayers[b->playerSlot]->second.bombUsed--;
+			this->bombs.remove(*b);
+		}
+
+		//netoyage de la file des supressions de bombes
+		bombsToRemove.clear();
 
 		//deflagrations
 		for(int x = 0 ; x < this->map.getWidth() ; x++){
@@ -615,10 +628,7 @@ bool Game::isObstructed(const unsigned short& x,const unsigned short& y){
 			|| this->bombObstructions[x][y]);
 }
 
-void Game::doDeflagration(const Bomb& bomb){
-	//suppression de la bombe
-	this->bombs.remove(bomb);
-	
+void Game::doDeflagration(Bomb& bomb){
 	//notification d'explosion
 	this->notifyBombExploded(bomb.position);
 
@@ -627,7 +637,7 @@ void Game::doDeflagration(const Bomb& bomb){
 	this->deflagrations[bomb.position.x][bomb.position.y]=DEFLAGRATION_TIMER;
 			
 	//haut
-	for(int i = 1 ; i < bomb.radius ; i++){
+	for(int i = 1 ; i <= bomb.radius ; i++){
 		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y - i)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x][bomb.position.y - i]){
@@ -677,7 +687,7 @@ void Game::doDeflagration(const Bomb& bomb){
 	}
 
 	//droite
-	for(int i = 1 ; i < bomb.radius ; i++){
+	for(int i = 1 ; i <= bomb.radius ; i++){
 		if(this->map.couldBeAPath(bomb.position.x + i,bomb.position.y)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x + i][bomb.position.y]){
@@ -726,7 +736,7 @@ void Game::doDeflagration(const Bomb& bomb){
 		}
 	}
 	//bas
-	for(int i = 1 ; i < bomb.radius ; i++){
+	for(int i = 1 ; i <= bomb.radius ; i++){
 		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y + i)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x][bomb.position.y + i]){
@@ -775,7 +785,7 @@ void Game::doDeflagration(const Bomb& bomb){
 		}
 	}
 	//gauche
-	for(int i = 1 ; i < bomb.radius ; i++){
+	for(int i = 1 ; i <= bomb.radius ; i++){
 		if(this->map.couldBeAPath(bomb.position.x - i,bomb.position.y)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x - i][bomb.position.y]){
@@ -823,6 +833,9 @@ void Game::doDeflagration(const Bomb& bomb){
 			this->deflagrations[bomb.position.x - i][bomb.position.y]=DEFLAGRATION_TIMER;
 		}
 	}
+
+	//enregistrement du besoin de suppression de la bombe
+	this->bombsToRemove.push_back(&bomb);
 }
 
 void Game::checkBonusAcquisition(const unsigned short& iPlayer){
@@ -831,7 +844,7 @@ void Game::checkBonusAcquisition(const unsigned short& iPlayer){
 		{
 		case ITEM_TYPE::BOOT:
 			if(inGamePlayers[iPlayer]->second.speed>8)
-				inGamePlayers[iPlayer]->second.speed--;
+				inGamePlayers[iPlayer]->second.speed-=2;
 			break;
 		case ITEM_TYPE::BOMB:
 			inGamePlayers[iPlayer]->second.maxBomb++;

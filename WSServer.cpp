@@ -362,7 +362,6 @@ void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
 					oss<<g->getID();
 					std::string playerID = oss.str();
 					if(g->getNbPlayers() == 0){
-						
 						this->notifyGameRemoved(playerID);
 						this->removeGame(g->getID());
 					break;
@@ -378,6 +377,11 @@ void WSServer::closeConnection(const websocketpp::server::connection_ptr& con){
 					oss<<g->getID();
 					std::string playerID = oss.str();
 					if(g->getNbPlayers() == 0){
+						if(gameLockers[g->getID()] != ((boost::mutex*)0)){
+							delete gameLockers[g->getID()];
+							gameLockers[g->getID()]=((boost::mutex*)0);
+						}
+
 						this->notifyGameRemoved(playerID);
 						this->removeGame(g->getID());
 					break;

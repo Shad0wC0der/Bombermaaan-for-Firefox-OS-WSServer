@@ -52,6 +52,16 @@ Request* RequestFactory::createRequest(const websocketpp::server::handler::conne
 		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(CHOOSE_COLOR)) == 0){
 			return new RequestChooseColor(parser,con,this->server);
 		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(MOVE)) == 0){
+			if(parser->nextValue()){
+				return new RequestMove(parser,con,this->server);
+			}
+		}
+		else if(std::string((parser->getCurrentValue()->string_value)).compare(stringify(DROP_BOMB)) == 0){
+			if(parser->nextValue()){
+				return new RequestDropBomb(parser,con,this->server);
+			}
+		}
 	}
 	
 	return new Request(con);

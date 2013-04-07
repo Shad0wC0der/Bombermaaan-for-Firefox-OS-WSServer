@@ -30,12 +30,12 @@ enum ITEM_TYPE {
 				};
 
 enum PLAYER_COLOR{
-				COLOR_NONE,
 				WHITE,
 				BLACK,
-				BLUE,
 				RED,
-				GREEN
+				BLUE,
+				GREEN,
+				COLOR_NONE
 				};
 
 struct Move{
@@ -46,6 +46,7 @@ struct Move{
 };
 
 struct Bomb{
+	unsigned short int playerSlot;
 	unsigned short int radius;
 	unsigned short int timer;
 	unsigned short int endTime;
@@ -126,13 +127,14 @@ private:
 	Map									map;
 	Move								moves[MAX_PLAYER];
 	std::list<Bomb>						bombs;
+	std::list<Bomb*>					bombsToRemove;	
 	unsigned short int**				items;
 	bool**								blocks;
 	bool**								bombObstructions;
 	unsigned short int**				deflagrations;
 	WSServer*							server;
 	bool								isObstructed(const unsigned short&,const unsigned short&);
-	void								doDeflagration(const Bomb&);
+	void								doDeflagration(Bomb&);
 
 };
 

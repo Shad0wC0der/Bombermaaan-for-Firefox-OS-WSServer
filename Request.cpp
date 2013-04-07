@@ -127,23 +127,17 @@ void RequestMove::process(void){
 		if(!jv || jv->type != json_type::JSON_STRING) throw 0;
 		std::string gameID = jv->string_value;
 		jv=jv->next_sibling;
-		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
-		std::string playerSlot = jv->string_value;
+		if(!jv || jv->type != json_type::JSON_INT)throw 0;
+		int playerSlot = jv->int_value;
 		jv=jv->next_sibling;
-		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
-		std::string direction = jv->string_value;
+		if(!jv || jv->type != json_type::JSON_INT)throw 0;
+		int direction = jv->int_value;
 
 
 		int igameid=atoi(gameID.c_str());
 		if(igameid==0 && gameID.compare("0")!=0)return;//security
 
-		int iPlayerSlot=atoi(playerSlot.c_str());
-		if(iPlayerSlot==0 && playerSlot.compare("0")!=0)return;//security
-
-		int iDirection=atoi(direction.c_str());
-		if(iDirection==0 && direction.compare("0")!=0)return;//security
-
-		this->server->redirectMoveRequest(igameid,iPlayerSlot,this->con,iDirection);
+		this->server->redirectMoveRequest(igameid,playerSlot,this->con,direction);
 	}catch(int){
 		con->send("wrong json format");
 	}
@@ -155,18 +149,14 @@ void RequestDropBomb::process(void){
 		if(!jv || jv->type != json_type::JSON_STRING) throw 0;
 		std::string gameID = jv->string_value;
 		jv=jv->next_sibling;
-		if(!jv || jv->type != json_type::JSON_STRING)throw 0;
-		std::string playerSlot = jv->string_value;
-		jv=jv->next_sibling;
+		if(!jv || jv->type != json_type::JSON_INT)throw 0;
+		int playerSlot = jv->int_value;
 
 
 		int igameid=atoi(gameID.c_str());
 		if(igameid==0 && gameID.compare("0")!=0)return;//security
 
-		int iPlayerSlot=atoi(playerSlot.c_str());
-		if(iPlayerSlot==0 && playerSlot.compare("0")!=0)return;//security
-
-		this->server->redirectDropBombRequest(igameid,iPlayerSlot,this->con);
+		this->server->redirectDropBombRequest(igameid,playerSlot,this->con);
 	}catch(int){
 		con->send("wrong json format");
 	}

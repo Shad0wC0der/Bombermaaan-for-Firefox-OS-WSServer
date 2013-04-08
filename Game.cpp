@@ -583,12 +583,12 @@ void Game::perform(){
 					//verification acquisition bonus
 					this->checkBonusAcquisition(i);
 				}
-
-				//verification mort du personnage
-				if(checkDeath(i)){
-					inGamePlayers[i]->second.alive=false;
-					this->notifyPlayerKilled(i);
-				}
+			}
+			
+			//verification mort du personnage
+			if(checkDeath(i)){
+				inGamePlayers[i]->second.alive=false;
+				this->notifyPlayerKilled(i);
 			}
 		}
 
@@ -860,6 +860,7 @@ void Game::checkBonusAcquisition(const unsigned short& iPlayer){
 }
 
 bool Game::checkDeath(const unsigned short& iPlayer)const{
+	unsigned short ** defl = deflagrations;
 	return (deflagrations[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y] > 0);
 }
 

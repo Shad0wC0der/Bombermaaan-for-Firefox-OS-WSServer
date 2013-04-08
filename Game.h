@@ -19,7 +19,8 @@ enum DIRECTION {
 				UP,
 				RIGHT,
 				DOWN,
-				LEFT
+				LEFT,
+				DIRECTION_NONE
 				};
 
 enum ITEM_TYPE {
@@ -68,6 +69,8 @@ public:
 	static const unsigned short MAX_PLAYER=4; 
 	static const unsigned short BOMB_TIMER=120;
 	static const unsigned short DEFLAGRATION_TIMER=10;
+	static const unsigned short NEXT_MOVE_BUFFER_TIMER=4;
+
 	Game(/*std::string,*/Player*,const unsigned short&,WSServer*);
 	virtual ~Game();
 	bool addPlayer(Player*);
@@ -83,6 +86,8 @@ public:
 		unsigned short radius;
 		unsigned short bombUsed;
 		unsigned short maxBomb;
+		unsigned short nextMoveBufferTimer;
+		DIRECTION nextMoveBuffer;
 	};
 	unsigned short getNbPlayers()const{return this->nbPlayers;}
 	Player* getPlayer(const unsigned short&)const;
@@ -99,6 +104,7 @@ public:
 	bool checkDeath(const unsigned short&)const;
 	bool isGameFinished()const;
 	void perform();
+	void doMove(const unsigned short&,const unsigned short&);
 
 	void notifyEnteringRoom(Player* player);
 	void notifyExitingRoom(const std::string& playerID);

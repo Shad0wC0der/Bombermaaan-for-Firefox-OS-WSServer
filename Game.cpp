@@ -79,7 +79,7 @@ bool Game::isColorAvalaible(const unsigned short& color)const{
 		return false;
 
 	for(int i = 0 ; i < this->nbPlayers ; i++){
-		if(inGamePlayers[i]->second.color == color)
+		if(inGamePlayers[i]->second.color == (PLAYER_COLOR)color)
 			return false;
 	}
 
@@ -133,6 +133,8 @@ void Game::startGame(){
 		inGamePlayers[i]->second.position.x=this->map.getPlayerPosition(i).x;
 		inGamePlayers[i]->second.position.y=this->map.getPlayerPosition(i).y;
 		inGamePlayers[i]->second.alive=true;
+		inGamePlayers[i]->second.nextMoveBuffer=DIRECTION::DIRECTION_NONE;
+		inGamePlayers[i]->second.nextMoveBufferTimer=0;
 	}
 
 	//initialisation aleatoire des blocs
@@ -248,9 +250,17 @@ void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::con
 void Game::move(const unsigned short& iPlayer,const websocketpp::server::connection_ptr& con,const unsigned short& direction){
 	if(iPlayer<0 || iPlayer>=this->nbPlayers) return;
 	if(inGamePlayers[iPlayer]->first->getCon() != con) return ;
-	if(moves[iPlayer].timer<moves[iPlayer].endTime) return;
 	if(!inGamePlayers[iPlayer]->second.alive) return;
 
+	if(moves[iPlayer].timer<moves[iPlayer].endTime){
+		inGamePlayers[iPlayer]->second.nextMoveBuffer=(DIRECTION)*(&direction);
+		inGamePlayers[iPlayer]->second.nextMoveBufferTimer=NEXT_MOVE_BUFFER_TIMER;
+	}else{
+		doMove(iPlayer,direction);
+	}
+}
+
+void Game::doMove(const unsigned short& iPlayer,const unsigned short& direction){
 	switch(direction){
 		case DIRECTION::UP:
 			if(this->isObstructed(inGamePlayers[iPlayer]->second.position.x,inGamePlayers[iPlayer]->second.position.y-1))return;
@@ -277,6 +287,7 @@ void Game::move(const unsigned short& iPlayer,const websocketpp::server::connect
 	moves[iPlayer].tChangePosition=(moves[iPlayer].endTime/2);
 	this->notifyMove(iPlayer,moves[iPlayer]);
 }
+
 
 Player* Game::getPlayer(const unsigned short& iPlayer)const{
 	if(iPlayer<0 || !(iPlayer<this->nbPlayers))return (Player*)0;
@@ -366,7 +377,7 @@ void Game::notifyColorChanged(){
 
 	for(unsigned short i = 1 ; i < this->nbPlayers ; i++){
 		std::ostringstream oss3;
-		oss3<<inGamePlayers[0]->second.color;
+		oss3<<inGamePlayers[i]->second.color;
 		m+=",{\"playerID\":\""+inGamePlayers[i]->first->getID()+"\",\"color\":"+oss3.str()+"}";
 	}
 
@@ -562,6 +573,7 @@ void Game::perform(){
 	}else{
 		//mouvements
 		for(int i = 0 ; i < this->nbPlayers ; i++){
+			if(!inGamePlayers[i]->second.alive)continue;
 			if(moves[i].timer<moves[i].endTime){
 				moves[i].timer++;
 				if(moves[i].timer == moves[i].tChangePosition){
@@ -585,7 +597,17 @@ void Game::perform(){
 					this->checkBonusAcquisition(i);
 				}
 			}
-			
+			//prise en compte du nextMoveBuffer pour effet fluide
+			if(moves[i].timer>=moves[i].endTime){
+				if(inGamePlayers[i]->second.nextMoveBufferTimer>0){
+					doMove(i,inGamePlayers[i]->second.nextMoveBuffer);
+					inGamePlayers[i]->second.nextMoveBufferTimer=0;
+				}
+			}
+
+			if(inGamePlayers[i]->second.nextMoveBufferTimer>0)
+				inGamePlayers[i]->second.nextMoveBufferTimer--;
+
 			//verification mort du personnage
 			if(checkDeath(i)){
 				inGamePlayers[i]->second.alive=false;
@@ -642,7 +664,7 @@ void Game::doDeflagration(Bomb& bomb){
 		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y - i)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x][bomb.position.y - i]){
-				for(Bomb b : bombs){
+				for(Bomb& b : bombs){
 					if(b.position.x == bomb.position.x && b.position.y == bomb.position.y - i){
 						this->doDeflagration(b);
 						break;
@@ -692,7 +714,7 @@ void Game::doDeflagration(Bomb& bomb){
 		if(this->map.couldBeAPath(bomb.position.x + i,bomb.position.y)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x + i][bomb.position.y]){
-				for(Bomb b : bombs){
+				for(Bomb& b : bombs){
 					if(b.position.x == bomb.position.x + i && b.position.y == bomb.position.y){
 						this->doDeflagration(b);
 						break;
@@ -733,7 +755,7 @@ void Game::doDeflagration(Bomb& bomb){
 				p.y=bomb.position.y;
 				this->notifyItemDestroyed(p);
 			}
-			this->deflagrations[bomb.position.x + 1][bomb.position.y]=DEFLAGRATION_TIMER;
+			this->deflagrations[bomb.position.x + i][bomb.position.y]=DEFLAGRATION_TIMER;
 		}else break;
 	}
 	//bas
@@ -741,7 +763,7 @@ void Game::doDeflagration(Bomb& bomb){
 		if(this->map.couldBeAPath(bomb.position.x,bomb.position.y + i)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x][bomb.position.y + i]){
-				for(Bomb b : bombs){
+				for(Bomb& b : bombs){
 					if(b.position.x == bomb.position.x && b.position.y == bomb.position.y + i){
 						this->doDeflagration(b);
 						break;
@@ -790,7 +812,7 @@ void Game::doDeflagration(Bomb& bomb){
 		if(this->map.couldBeAPath(bomb.position.x - i,bomb.position.y)){
 			//atteint une autre bombe
 			if(this->bombObstructions[bomb.position.x - i][bomb.position.y]){
-				for(Bomb b : bombs){
+				for(Bomb& b : bombs){
 					if(b.position.x == bomb.position.x - i && b.position.y == bomb.position.y){
 						this->doDeflagration(b);
 						break;
@@ -861,7 +883,6 @@ void Game::checkBonusAcquisition(const unsigned short& iPlayer){
 }
 
 bool Game::checkDeath(const unsigned short& iPlayer)const{
-	unsigned short ** defl = deflagrations;
 	return (deflagrations[inGamePlayers[iPlayer]->second.position.x][inGamePlayers[iPlayer]->second.position.y] > 0);
 }
 

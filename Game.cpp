@@ -241,6 +241,7 @@ void Game::dropBomb(const unsigned short& iPlayer,const websocketpp::server::con
 	inGamePlayers[iPlayer]->second.bombUsed++;
 
 	this->bombs.push_back(b);
+	this->bombObstructions[b.position.x][b.position.y]=true;
 	this->notifyBombDropped(iPlayer,b);
 }
 
@@ -683,7 +684,7 @@ void Game::doDeflagration(Bomb& bomb){
 				this->notifyItemDestroyed(p);
 			}
 			this->deflagrations[bomb.position.x][bomb.position.y - i]=DEFLAGRATION_TIMER;
-		}
+		}else break;
 	}
 
 	//droite
@@ -733,7 +734,7 @@ void Game::doDeflagration(Bomb& bomb){
 				this->notifyItemDestroyed(p);
 			}
 			this->deflagrations[bomb.position.x + 1][bomb.position.y]=DEFLAGRATION_TIMER;
-		}
+		}else break;
 	}
 	//bas
 	for(int i = 1 ; i <= bomb.radius ; i++){
@@ -782,7 +783,7 @@ void Game::doDeflagration(Bomb& bomb){
 				this->notifyItemDestroyed(p);
 			}
 			this->deflagrations[bomb.position.x][bomb.position.y + i]=DEFLAGRATION_TIMER;
-		}
+		}else break;
 	}
 	//gauche
 	for(int i = 1 ; i <= bomb.radius ; i++){
@@ -831,7 +832,7 @@ void Game::doDeflagration(Bomb& bomb){
 				this->notifyItemDestroyed(p);
 			}
 			this->deflagrations[bomb.position.x - i][bomb.position.y]=DEFLAGRATION_TIMER;
-		}
+		}else break;
 	}
 
 	//enregistrement du besoin de suppression de la bombe
